@@ -147,18 +147,30 @@ func (this *DiscordUI) interactionCreate(s *discordgo.Session, ic *discordgo.Int
 		case JoinCmd:
 			respData := &discordgo.InteractionResponseData{Content: "Not yet implemented."}
 			resp := &discordgo.InteractionResponse{Type: discordgo.InteractionResponseChannelMessageWithSource, Data: respData}
-			this.session.InteractionRespond(ic.Interaction, resp)
+			if err := this.session.InteractionRespond(ic.Interaction, resp); err != nil {
+				fmt.Printf("Error calling InteractionRespond: %v", err.Error())
+			}
 		case LeaveCmd:
 			respData := &discordgo.InteractionResponseData{Content: "Not yet implemented."}
 			resp := &discordgo.InteractionResponse{Type: discordgo.InteractionResponseChannelMessageWithSource, Data: respData}
-			this.session.InteractionRespond(ic.Interaction, resp)
+			if err := this.session.InteractionRespond(ic.Interaction, resp); err != nil {
+				fmt.Printf("Error calling InteractionRespond: %v", err.Error())
+			}
 		case ShutdownCmd:
 			respData := &discordgo.InteractionResponseData{Content: "Shutting down."}
 			resp := &discordgo.InteractionResponse{Type: discordgo.InteractionResponseChannelMessageWithSource, Data: respData}
-			this.session.InteractionRespond(ic.Interaction, resp)
+			if err := this.session.InteractionRespond(ic.Interaction, resp); err != nil {
+				fmt.Printf("Error calling InteractionRespond: %v", err.Error())
+			}
 			this.rebootRequested = 0xdeadbeef
 			s.Close()
 			this.runningChan <- false
+		}
+	} else {
+		respData := &discordgo.InteractionResponseData{Content: fmt.Sprintf("ic.Type was %v instead of InteractionApplicationCommand.", ic.Type)}
+		resp := &discordgo.InteractionResponse{Type: discordgo.InteractionResponseChannelMessageWithSource, Data: respData}
+		if err := this.session.InteractionRespond(ic.Interaction, resp); err != nil {
+			fmt.Printf("Error calling InteractionRespond: %v", err.Error())
 		}
 	}
 }
@@ -295,7 +307,9 @@ func (this *DiscordUI) handleColorCommand(interaction *discordgo.Interaction, ta
 	if len(response) > 0 {
 		respData := &discordgo.InteractionResponseData{Content: response}
 		resp := &discordgo.InteractionResponse{Type: discordgo.InteractionResponseChannelMessageWithSource, Data: respData}
-		this.session.InteractionRespond(interaction, resp)
+		if err := this.session.InteractionRespond(interaction, resp); err != nil {
+			fmt.Printf("Error calling InteractionRespond: %v", err.Error())
+		}
 	}
 }
 
