@@ -86,7 +86,7 @@ func (this *DiscordUI) Run() {
 		Required: true, Autocomplete: true, MinLength: &minColorLen, MaxLength: maxColorLen}}
 	colorCmd := &discordgo.ApplicationCommand{ID: ColorCmd, ApplicationID: this.appID, Type: discordgo.ChatApplicationCommand, Name: ColorCmd,
 		Description: "Change your name's color to a 3 or 6 digit hex color code, such as FF0 or FFFF00 for yellow.", Options: colorCmdOptions}
-	roleOption := &discordgo.ApplicationCommandOption{Type: discordgo.ApplicationCommandOptionRole,
+	roleOption := &discordgo.ApplicationCommandOption{Type: discordgo.ApplicationCommandOptionString,
 		Name: GroupOption, Description: "The group you want to join or leave", ChannelTypes: []discordgo.ChannelType{discordgo.ChannelTypeGuildText},
 		Required: true, Autocomplete: true}
 	joinCmdOptions := []*discordgo.ApplicationCommandOption{roleOption}
