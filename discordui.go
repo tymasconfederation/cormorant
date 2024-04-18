@@ -69,6 +69,16 @@ func (this *DiscordUI) Run() {
 	var minColorLen, maxColorLen int = 3, 7
 	var adminPermission int64 = 0x08
 
+	err = discord.Open()
+	this.session.ShouldReconnectOnError = true
+
+	if err != nil {
+		panic(fmt.Sprintf("Error opening Discord session: %s", err.Error()))
+	}
+	fmt.Println("Cormorant is now running. Press ctrl-c to exit.")
+
+	fmt.Println("Registering commands.")
+
 	// Options has to be a []*ApplicationCommandOption instead of []ApplicationCommandOption, possibly in case multiple commands have some of the same parameters.
 	// There's a 100 character length limit on descriptions.
 	colorCmdOptions := []*discordgo.ApplicationCommandOption{{Type: discordgo.ApplicationCommandOptionString,
@@ -99,14 +109,7 @@ func (this *DiscordUI) Run() {
 	if _, err := discord.ApplicationCommandCreate(this.appID, "", shutdownCmd); err != nil {
 		panic(fmt.Sprintf("Error registering shutdown command: %s", err.Error()))
 	}
-
-	err = discord.Open()
-	this.session.ShouldReconnectOnError = true
-
-	if err != nil {
-		panic(fmt.Sprintf("Error opening Discord session: %s", err.Error()))
-	}
-	fmt.Println("Cormorant is now running. Press ctrl-c to exit.")
+	fmt.Println("Commands registered.")
 }
 
 func (this *DiscordUI) ready(s *discordgo.Session, m *discordgo.Ready) {
