@@ -83,12 +83,12 @@ func (this *DiscordUI) Run() {
 	// There's a 100 character length limit on descriptions.
 	colorCmdOptions := []*discordgo.ApplicationCommandOption{{Type: discordgo.ApplicationCommandOptionString,
 		Name: ColorOption, Description: "A three or six digit hexadecimal color code", ChannelTypes: []discordgo.ChannelType{discordgo.ChannelTypeGuildText},
-		Required: true, Autocomplete: true, MinLength: &minColorLen, MaxLength: maxColorLen}}
+		Required: true, Autocomplete: false, MinLength: &minColorLen, MaxLength: maxColorLen}}
 	colorCmd := &discordgo.ApplicationCommand{ID: ColorCmd, ApplicationID: this.appID, Type: discordgo.ChatApplicationCommand, Name: ColorCmd,
 		Description: "Change your name's color to a 3 or 6 digit hex color code, such as FF0 or FFFF00 for yellow.", Options: colorCmdOptions}
 	roleOption := &discordgo.ApplicationCommandOption{Type: discordgo.ApplicationCommandOptionString,
 		Name: GroupOption, Description: "The group you want to join or leave", ChannelTypes: []discordgo.ChannelType{discordgo.ChannelTypeGuildText},
-		Required: true, Autocomplete: true}
+		Required: true, Autocomplete: false}
 	joinCmdOptions := []*discordgo.ApplicationCommandOption{roleOption}
 	joinCmd := &discordgo.ApplicationCommand{ID: JoinCmd, ApplicationID: this.appID, Type: discordgo.ChatApplicationCommand, Name: JoinCmd,
 		Description: "Join a group (give yourself a pingable role)", Options: joinCmdOptions}
@@ -134,7 +134,7 @@ func (this *DiscordUI) hasRole(guild, userID, roleID string) bool {
 }
 
 func (this *DiscordUI) interactionCreate(s *discordgo.Session, ic *discordgo.InteractionCreate) {
-	if ic.Type == discordgo.InteractionApplicationCommand || ic.Type == discordgo.InteractionApplicationCommandAutocomplete {
+	if ic.Type == discordgo.InteractionApplicationCommand {
 		cmdData := ic.ApplicationCommandData()
 		options := cmdData.Options
 		fmt.Printf("InteractionCreate event received. Command is \"%v\".\n", cmdData.Name)
@@ -170,6 +170,8 @@ func (this *DiscordUI) interactionCreate(s *discordgo.Session, ic *discordgo.Int
 			s.Close()
 			this.runningChan <- false
 		}
+	} else if ic.Type == discordgo.InteractionApplicationCommandAutocomplete {
+		// when the user it typing in a field that's flagged autocomplete we receive these events and can respond to them with InteractionApplicationCommandAutocompleteResult
 	} else {
 		fmt.Printf("ic.Type was %v instead of InteractionApplicationCommand.\n", ic.Type.String())
 		respData := &discordgo.InteractionResponseData{Content: fmt.Sprintf("ic.Type was %v instead of InteractionApplicationCommand.", ic.Type.String()),
@@ -192,6 +194,7 @@ func (this *DiscordUI) handleColorCommand(interaction *discordgo.Interaction, ta
 		colorParam = string(cpcDbl)
 	}
 	newColor64, err := strconv.ParseInt(colorParam, 16, 32)
+	fmt.Printf("Parsed color param '%v' to %x\n", colorParam, newColor64)
 	response := ""
 	if err != nil {
 		response = "Failed to parse color code."
@@ -201,6 +204,7 @@ func (this *DiscordUI) handleColorCommand(interaction *discordgo.Interaction, ta
 		g := (newColor >> 8) & 0xff
 		r := (newColor >> 16) & 0xff
 		y := (r + r + r + b + g + g + g + g) >> 3
+		fmt.Printf("Split %x to %x, %x, %x\n", newColor, r, g, b)
 		if y < 72 {
 			response = "Sorry, that's too dark."
 		} else {
@@ -231,7 +235,7 @@ func (this *DiscordUI) handleColorCommand(interaction *discordgo.Interaction, ta
 						}
 					}
 					var roleFound *discordgo.Role = nil
-					///fmt.Printf("Searching roles for %v.\n", who)
+					fmt.Printf("Searching roles for %v.\n", member.User.ID)
 					for i := 0; i < len(roles); i++ {
 						if strings.Contains(roles[i].Name, member.User.ID) {
 							roleFound = roles[i]
@@ -239,18 +243,21 @@ func (this *DiscordUI) handleColorCommand(interaction *discordgo.Interaction, ta
 							hoist := roles[i].Hoist
 							permissions := roles[i].Permissions
 							mentionable := roles[i].Mentionable
+							fmt.Printf("Found it.")
 							roleParams := &discordgo.RoleParams{Name: roles[i].Name, Color: &newColor, Hoist: &hoist, Permissions: &permissions, Mentionable: &mentionable}
-							_, err = s.GuildRoleEdit(targGuild, roles[i].ID, roleParams)
+							var newRole *discordgo.Role
+							newRole, err = s.GuildRoleEdit(targGuild, roles[i].ID, roleParams)
 							if err != nil {
 								response = fmt.Sprintf("Failed to change role color: %s", err.Error())
 								break
 							} else {
+								roles[i] = newRole
 								response = "Role color changed successfully."
 							}
 						}
 					}
 					if roleFound == nil {
-						//fmt.Printf("Did not find it. Creating new role.\n")
+						fmt.Printf("Did not find it. Creating new role.\n")
 						hoist := false
 						var permissions int64 = 0
 						mentionable := false
@@ -260,6 +267,7 @@ func (this *DiscordUI) handleColorCommand(interaction *discordgo.Interaction, ta
 						if err != nil {
 							response = "I don't think we have the manage roles permission."
 						} else {
+							fmt.Printf("Role created. Assigning it to the user now.\n")
 							err = s.GuildMemberRoleAdd(targGuild, member.User.ID, role.ID)
 							if err != nil {
 								response = fmt.Sprintf("Failed to assign new role %s: %s", role.Name, err.Error())
@@ -267,7 +275,7 @@ func (this *DiscordUI) handleColorCommand(interaction *discordgo.Interaction, ta
 								//Sorting guild roles is far more complicated than removing people from them,
 								//but also safer in that if another important role is below the bot's role, it
 								//won't take people out of that role when they request a color change.
-
+								fmt.Printf("Sorting guild roles.\n")
 								groles, err = s.GuildRoles(targGuild)
 								if err != nil {
 									response = fmt.Sprintf("Failed to assign new role %s: %s", role.Name, err.Error())
