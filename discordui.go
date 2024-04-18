@@ -134,10 +134,11 @@ func (this *DiscordUI) hasRole(guild, userID, roleID string) bool {
 }
 
 func (this *DiscordUI) interactionCreate(s *discordgo.Session, ic *discordgo.InteractionCreate) {
-	if ic.Type == discordgo.InteractionApplicationCommand {
+	if ic.Type == discordgo.InteractionApplicationCommand || ic.Type == discordgo.InteractionApplicationCommandAutocomplete {
 		cmdData := ic.ApplicationCommandData()
 		options := cmdData.Options
-		switch cmdData.ID {
+		fmt.Printf("InteractionCreate event received. Command is \"%v\".\n", cmdData.Name)
+		switch cmdData.Name {
 		case ColorCmd:
 			if len(options) == 1 && options[0].Name == ColorOption && options[0].Type == discordgo.ApplicationCommandOptionString {
 				hexCode := options[0].StringValue()
@@ -151,29 +152,33 @@ func (this *DiscordUI) interactionCreate(s *discordgo.Session, ic *discordgo.Int
 			respData := &discordgo.InteractionResponseData{Content: "Not yet implemented."}
 			resp := &discordgo.InteractionResponse{Type: discordgo.InteractionResponseChannelMessageWithSource, Data: respData}
 			if err := this.session.InteractionRespond(ic.Interaction, resp); err != nil {
-				fmt.Printf("Error calling InteractionRespond: %v", err.Error())
+				fmt.Printf("Error calling JoinCmd InteractionRespond: %v\n", err.Error())
 			}
 		case LeaveCmd:
 			respData := &discordgo.InteractionResponseData{Content: "Not yet implemented."}
 			resp := &discordgo.InteractionResponse{Type: discordgo.InteractionResponseChannelMessageWithSource, Data: respData}
 			if err := this.session.InteractionRespond(ic.Interaction, resp); err != nil {
-				fmt.Printf("Error calling InteractionRespond: %v", err.Error())
+				fmt.Printf("Error calling LeaveCmd InteractionRespond: %v\n", err.Error())
 			}
 		case ShutdownCmd:
 			respData := &discordgo.InteractionResponseData{Content: "Shutting down."}
 			resp := &discordgo.InteractionResponse{Type: discordgo.InteractionResponseChannelMessageWithSource, Data: respData}
 			if err := this.session.InteractionRespond(ic.Interaction, resp); err != nil {
-				fmt.Printf("Error calling InteractionRespond: %v", err.Error())
+				fmt.Printf("Error calling ShutdownCmd InteractionRespond: %v\n", err.Error())
 			}
 			this.rebootRequested = 0xdeadbeef
 			s.Close()
 			this.runningChan <- false
 		}
 	} else {
-		respData := &discordgo.InteractionResponseData{Content: fmt.Sprintf("ic.Type was %v instead of InteractionApplicationCommand.", ic.Type)}
+		fmt.Printf("ic.Type was %v instead of InteractionApplicationCommand.\n", ic.Type.String())
+		respData := &discordgo.InteractionResponseData{Content: fmt.Sprintf("ic.Type was %v instead of InteractionApplicationCommand.", ic.Type.String()),
+			TTS: false, Embeds: []*discordgo.MessageEmbed{}, Components: []discordgo.MessageComponent{}}
 		resp := &discordgo.InteractionResponse{Type: discordgo.InteractionResponseChannelMessageWithSource, Data: respData}
+		// discord is returning a weird error when we send this for some reason
+		// HTTP 400 Bad Request, {"message": "Invalid Form Body", "code": 50035, "errors": {"type": {"_errors": [{"code": "BASE_TYPE_CHOICES", "message": "Value must be one of {8}."}]}}}
 		if err := this.session.InteractionRespond(ic.Interaction, resp); err != nil {
-			fmt.Printf("Error calling InteractionRespond: %v", err.Error())
+			fmt.Printf("Error calling default InteractionRespond: %v\n", err.Error())
 		}
 	}
 }
@@ -311,7 +316,7 @@ func (this *DiscordUI) handleColorCommand(interaction *discordgo.Interaction, ta
 		respData := &discordgo.InteractionResponseData{Content: response}
 		resp := &discordgo.InteractionResponse{Type: discordgo.InteractionResponseChannelMessageWithSource, Data: respData}
 		if err := this.session.InteractionRespond(interaction, resp); err != nil {
-			fmt.Printf("Error calling InteractionRespond: %v", err.Error())
+			fmt.Printf("Error calling handleColorCommand InteractionRespond: %v\n", err.Error())
 		}
 	}
 }
