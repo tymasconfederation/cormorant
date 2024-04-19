@@ -236,6 +236,7 @@ func (this *DiscordUI) handleJoinCommand(interaction *discordgo.Interaction, tar
 	response := ""
 	mroles := member.Roles
 	groles, err := s.GuildRoles(targGuild)
+	groupParam = strings.ReplaceAll(groupParam, "@", "")
 	if err != nil {
 		response = "Failed to retrieve list of guild roles: " + err.Error()
 	} else {
@@ -295,6 +296,8 @@ func (this *DiscordUI) handleJoinCommand(interaction *discordgo.Interaction, tar
 						response = this.sortGuildRoles(groles, s, targGuild, role, botm, true, fmt.Sprintf("Added @%v to new role `@%v`.", name, role.Name))
 					}
 				}
+			} else {
+				response = fmt.Sprintf("Unable to assign role: %s", groupParam)
 			}
 		}
 	}
@@ -565,6 +568,9 @@ func (this *DiscordUI) assignableRoleName(roleName string) (assignable bool) {
 	}
 	if !onlyDigits {
 		assignable = true
+	}
+	if strings.ToLower(roleName) == "everyone" {
+		assignable = false
 	}
 	return
 }

@@ -4,3 +4,4 @@ apikey.txt
 .vscode/ipch
 .vscode/settings.json
 .env
+*.exe
