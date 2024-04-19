@@ -1,5 +1,15 @@
 package cormorant
 
+/*
+	TODO:
+	• Strip leading @s from join and leave commands
+	• Make sure there isn't a role with the specified name before creating a new one, since right now it can do this if you name a role that it can't add.
+	• > Searching roles for Admin.
+	  > Error calling join command InteractionRespond: HTTP 400 Bad Request, {"message": "Cannot send an empty message", "code": 50006}
+	• Consider setting the names of the color roles to the value of the color instead of the user ID?
+	• Don't show @everyone in the autocomplete and don't allow people to try to join or leave it
+*/
+
 import (
 	"fmt"
 	"sort"
@@ -540,15 +550,7 @@ func (this *DiscordUI) ExtractUserID(s string) string {
 func (this *DiscordUI) assignableRole(role *discordgo.Role, botHighRole int) (assignable bool) {
 	assignable = false
 	if role.Position < botHighRole {
-		onlyDigits := true
-		for _, r := range role.Name {
-			if r < '0' || r > '9' {
-				onlyDigits = false
-			}
-		}
-		if !onlyDigits {
-			assignable = true
-		}
+		assignable = this.assignableRoleName(role.Name)
 	}
 	return
 }
