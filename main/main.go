@@ -41,9 +41,8 @@ func main() {
 		return
 	}
 
-	runningChan := make(chan bool)
+	runningChan := make(chan int)
 	disc := cormorant.NewDiscordUI(appID, authToken, runningChan)
 	go disc.Run()
-	_ = <-runningChan
-	os.Exit(disc.RebootRequested())
+	os.Exit(<-runningChan)
 }

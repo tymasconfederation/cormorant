@@ -3,3 +3,4 @@ apikey.txt
 .idea
 .vscode/ipch
 .vscode/settings.json
+.env
