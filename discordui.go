@@ -588,3 +588,12 @@ func (this *DiscordUI) getAllGuildRoles() {
 	}
 	this.guildRoles = guildRoles
 }
+
+func (this *DiscordUI) updateGuildRoles(guildID string) {
+	guild, err := this.session.Guild(guildID)
+	if err == nil {
+		this.guildRoles[guildID] = guild.Roles
+	} else {
+		fmt.Printf("Error calling updateGuildRoles: %s", err.Error())
+	}
+}
