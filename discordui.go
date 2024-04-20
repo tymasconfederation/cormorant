@@ -247,12 +247,7 @@ func (this *DiscordUI) handleJoinCommand(interaction *discordgo.Interaction, tar
 					break
 				}
 			}
-			var name string
-			if len(member.Nick) > 0 {
-				name = member.Nick
-			} else {
-				name = member.User.Username
-			}
+			name := member.User.Username
 			if roleFound != nil {
 				if this.assignableRole(roleFound, botHighRole) {
 					// make sure they don't already have the role
@@ -325,12 +320,7 @@ func (this *DiscordUI) handleLeaveCommand(interaction *discordgo.Interaction, ta
 					break
 				}
 			}
-			var name string
-			if len(member.Nick) > 0 {
-				name = member.Nick
-			} else {
-				name = member.User.Username
-			}
+			name := member.User.Username
 			if roleFound != nil {
 				if this.assignableRole(roleFound, botHighRole) {
 					// make sure they already have the role
