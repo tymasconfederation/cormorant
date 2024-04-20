@@ -28,10 +28,12 @@ const (
 	ColorCmd    = "color"
 	JoinCmd     = "join"
 	LeaveCmd    = "leave"
+	WeatherCmd  = "weather"
 	ShutdownCmd = "shutdown"
 
-	ColorOption = "color"
-	GroupOption = "group"
+	ColorOption   = "color"
+	GroupOption   = "group"
+	WeatherOption = "location"
 )
 
 type DiscordUI struct {
@@ -96,6 +98,11 @@ func (this *DiscordUI) Run() {
 	leaveCmdOptions := []*discordgo.ApplicationCommandOption{roleOption}
 	leaveCmd := &discordgo.ApplicationCommand{ID: LeaveCmd, ApplicationID: this.appID, Type: discordgo.ChatApplicationCommand, Name: LeaveCmd,
 		Description: "Leave a group (remove a pingable role from yourself)", Options: leaveCmdOptions}
+	weatherCmdOptions := []*discordgo.ApplicationCommandOption{{Type: discordgo.ApplicationCommandOptionString,
+		Name: WeatherOption, Description: "A postal code or location name, e.g. Paris, France", ChannelTypes: []discordgo.ChannelType{discordgo.ChannelTypeGuildText},
+		Required: true, Autocomplete: false}}
+	weatherCmd := &discordgo.ApplicationCommand{ID: WeatherCmd, ApplicationID: this.appID, Type: discordgo.ChatApplicationCommand, Name: WeatherCmd,
+		Description: "Check the weather", Options: weatherCmdOptions}
 	shutdownCmd := &discordgo.ApplicationCommand{ID: ShutdownCmd, ApplicationID: this.appID, Type: discordgo.ChatApplicationCommand, Name: ShutdownCmd,
 		Description: "Shut the bot down", DefaultMemberPermissions: &adminPermission} // require administrator permission
 	if _, err := discord.ApplicationCommandCreate(this.appID, "", colorCmd); err != nil {
@@ -106,6 +113,9 @@ func (this *DiscordUI) Run() {
 	}
 	if _, err := discord.ApplicationCommandCreate(this.appID, "", leaveCmd); err != nil {
 		panic(fmt.Sprintf("Error registering leave command: %s", err.Error()))
+	}
+	if _, err := discord.ApplicationCommandCreate(this.appID, "", weatherCmd); err != nil {
+		panic(fmt.Sprintf("Error registering weather command: %s", err.Error()))
 	}
 	if _, err := discord.ApplicationCommandCreate(this.appID, "", shutdownCmd); err != nil {
 		panic(fmt.Sprintf("Error registering shutdown command: %s", err.Error()))
@@ -168,6 +178,19 @@ func (this *DiscordUI) interactionCreate(s *discordgo.Session, ic *discordgo.Int
 		case LeaveCmd:
 			if len(options) == 1 && options[0].Name == GroupOption && options[0].Type == discordgo.ApplicationCommandOptionString {
 				this.handleLeaveCommand(ic.Interaction, ic.GuildID, ic.Member, options[0].StringValue())
+			}
+		case WeatherCmd:
+			if len(options) == 1 && options[0].Name == WeatherOption && options[0].Type == discordgo.ApplicationCommandOptionString {
+				var responseStr string
+				var err error
+				if responseStr, err = Forecast(options[0].StringValue()); err != nil {
+					responseStr = err.Error()
+				}
+				respData := &discordgo.InteractionResponseData{Content: responseStr}
+				resp := &discordgo.InteractionResponse{Type: discordgo.InteractionResponseChannelMessageWithSource, Data: respData}
+				if err := this.session.InteractionRespond(ic.Interaction, resp); err != nil {
+					fmt.Printf("Error calling WeatherCmd InteractionRespond: %v\n", err.Error())
+				}
 			}
 		case ShutdownCmd:
 			respData := &discordgo.InteractionResponseData{Content: "Shutting down."}
