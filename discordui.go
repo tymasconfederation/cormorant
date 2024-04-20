@@ -1,6 +1,5 @@
 package cormorant
 
-
 import (
 	"fmt"
 	"sort"
@@ -45,6 +44,7 @@ type DiscordUI struct {
 	botID                          string
 	guildChannels                  map[string]string
 	rebootRequested                int
+	guildRoles                     map[string][]*discordgo.Role
 }
 
 func (this *DiscordUI) RebootRequested() int {
@@ -66,6 +66,9 @@ func (this *DiscordUI) Run() {
 
 	this.readyHandlerRemove = discord.AddHandler(this.ready)
 	this.interactionCreateHandlerRemove = discord.AddHandler(this.interactionCreate)
+	fmt.Println("Getting all guild roles.")
+	this.getAllGuildRoles()
+	fmt.Println("Guild roles retrieved.")
 
 	var minColorLen, maxColorLen int = 3, 7
 	var adminPermission int64 = 0x08
@@ -564,4 +567,24 @@ func (this *DiscordUI) assignableRoleName(roleName string) (assignable bool) {
 		assignable = false
 	}
 	return
+}
+
+func (this *DiscordUI) getAllGuildRoles() {
+	joinedGuilds, err := this.session.UserGuilds(200, "", "", false)
+	if err != nil {
+		fmt.Printf("Error calling getGuildRoles: %s", err.Error())
+		return
+	}
+	guildRoles := make(map[string][]*discordgo.Role)
+	for _, g := range joinedGuilds {
+		guild, err := this.session.Guild(g.ID)
+		if err != nil {
+			fmt.Printf("Error calling getGuildRoles: %s", err.Error())
+			break
+		} else {
+			roles := guild.Roles
+			guildRoles[g.ID] = roles
+		}
+	}
+	this.guildRoles = guildRoles
 }
