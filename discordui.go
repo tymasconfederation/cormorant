@@ -66,9 +66,6 @@ func (this *DiscordUI) Run() {
 
 	this.readyHandlerRemove = discord.AddHandler(this.ready)
 	this.interactionCreateHandlerRemove = discord.AddHandler(this.interactionCreate)
-	fmt.Println("Getting all guild roles.")
-	this.getAllGuildRoles()
-	fmt.Println("Guild roles retrieved.")
 
 	var minColorLen, maxColorLen int = 3, 7
 	var adminPermission int64 = 0x08
@@ -118,6 +115,9 @@ func (this *DiscordUI) Run() {
 
 func (this *DiscordUI) ready(s *discordgo.Session, m *discordgo.Ready) {
 	this.botID = m.User.ID
+	fmt.Println("Getting all guild roles.")
+	this.getAllGuildRoles()
+	fmt.Println("Guild roles retrieved.")
 }
 
 func (this *DiscordUI) hasRolePtr(m *discordgo.Member, role *discordgo.Role) bool {
