@@ -247,7 +247,6 @@ func (this *DiscordUI) handleJoinCommand(interaction *discordgo.Interaction, tar
 					break
 				}
 			}
-			name := member.User.Username
 			if roleFound != nil {
 				if this.assignableRole(roleFound, botHighRole) {
 					// make sure they don't already have the role
@@ -264,7 +263,7 @@ func (this *DiscordUI) handleJoinCommand(interaction *discordgo.Interaction, tar
 						if err != nil {
 							response = fmt.Sprintf("Failed to assign new role %s: %s", roleFound.Name, err.Error())
 						} else {
-							response = fmt.Sprintf("Added @%v to `@%v`", name, roleFound.Name)
+							response = fmt.Sprintf("Added %v to `@%v`", member.DisplayName(), roleFound.Name)
 						}
 					}
 				}
@@ -282,7 +281,7 @@ func (this *DiscordUI) handleJoinCommand(interaction *discordgo.Interaction, tar
 					if err != nil {
 						response = fmt.Sprintf("Failed to assign new role %s: %s", role.Name, err.Error())
 					} else {
-						response = this.sortGuildRoles(groles, s, targGuild, role, botm, true, fmt.Sprintf("Added @%v to new role `@%v`.", name, role.Name))
+						response = this.sortGuildRoles(groles, s, targGuild, role, botm, true, fmt.Sprintf("Added %v to new role `@%v`.", member.DisplayName(), role.Name))
 					}
 				}
 			} else {
@@ -320,7 +319,6 @@ func (this *DiscordUI) handleLeaveCommand(interaction *discordgo.Interaction, ta
 					break
 				}
 			}
-			name := member.User.Username
 			if roleFound != nil {
 				if this.assignableRole(roleFound, botHighRole) {
 					// make sure they already have the role
@@ -337,7 +335,7 @@ func (this *DiscordUI) handleLeaveCommand(interaction *discordgo.Interaction, ta
 						if err != nil {
 							response = fmt.Sprintf("Failed to remove role %s: %s", roleFound.Name, err.Error())
 						} else {
-							response = fmt.Sprintf("Removed @%v from `@%v`", name, roleFound.Name)
+							response = fmt.Sprintf("Removed %v from `@%v`", member.DisplayName(), roleFound.Name)
 						}
 					} else {
 						response = fmt.Sprintf("You aren't in the role %v!", groupParam)
