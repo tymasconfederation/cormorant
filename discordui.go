@@ -230,7 +230,7 @@ func (this *DiscordUI) handleJoinCommand(interaction *discordgo.Interaction, tar
 	response := ""
 	mroles := member.Roles
 	groles, err := s.GuildRoles(targGuild)
-	groupParam = strings.ReplaceAll(groupParam, "@", "")
+	groupParam = strings.TrimPrefix(groupParam, "@")
 	if err != nil {
 		response = "Failed to retrieve list of guild roles: " + err.Error()
 	} else {
@@ -308,6 +308,7 @@ func (this *DiscordUI) handleLeaveCommand(interaction *discordgo.Interaction, ta
 	response := ""
 	mroles := member.Roles
 	groles, err := s.GuildRoles(targGuild)
+	groupParam = strings.TrimPrefix(groupParam, "@")
 	if err != nil {
 		response = "Failed to retrieve list of guild roles: " + err.Error()
 	} else {
@@ -367,7 +368,7 @@ func (this *DiscordUI) handleLeaveCommand(interaction *discordgo.Interaction, ta
 
 func (this *DiscordUI) handleColorCommand(interaction *discordgo.Interaction, targGuild string, member *discordgo.Member, colorParam string) {
 	s := this.session
-	colorParam, _ = strings.CutPrefix(colorParam, "#")
+	colorParam = strings.TrimPrefix(colorParam, "#")
 	if len(colorParam) == 3 {
 		cpc := []rune(colorParam)
 		cpcDbl := []rune{cpc[0], cpc[0], cpc[1], cpc[1], cpc[2], cpc[2]}
