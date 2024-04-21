@@ -195,14 +195,14 @@ func Forecast(place string, forecast int) (ret string, err error) {
 						}
 						ret = fmt.Sprintf("Weather for %v, %v, %v:\n%v\n"+
 							":thermometer: Temperature: Currently %0.1f°F (%0.1f°C).\n"+
-							":arrow_down: Low of %0.1f°F (%0.1f°C), apparent %0.1f°F (*%0.1f°C).\n"+
+							":arrow_down: Low of %0.1f°F (%0.1f°C), apparent %0.1f°F (%0.1f°C).\n"+
 							":arrow_up: High of %0.1f°F (%0.1f°C), apparent %0.1f°F (%0.1f°C)\n"+
 							"%v"+
 							":dash: Wind: %0.2f MPH / %0.2f km/h\n"+
 							":sunrise: Sunrise at %v\n"+
 							":city_dusk: Sunset at %v",
-							geo.Name, geo.Admin1, geo.Country, weatherCodeStr, curTempF, curTemp, minTempF, minTemp, maxTempF, maxTemp,
-							minTempApparentF, minTempApparent, maxTempApparentF, maxTempApparent, precipStr,
+							geo.Name, geo.Admin1, geo.Country, weatherCodeStr, curTempF, curTemp, minTempF, minTemp,
+							minTempApparentF, minTempApparent, maxTempF, maxTemp, maxTempApparentF, maxTempApparent, precipStr,
 							curWindspeedMph, curWindspeed, sunrise, sunset)
 					}
 				}
