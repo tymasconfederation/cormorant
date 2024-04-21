@@ -556,9 +556,11 @@ func (this *DiscordUI) ExtractUserID(s string) string {
 	}
 }
 
+// Returns whether the role should be assignable by the bot.
+// This is done by checking if the role is both below the bot in the role list and has no permissions granted
 func (this *DiscordUI) assignableRole(role *discordgo.Role, botHighRole int) (assignable bool) {
 	assignable = false
-	if role.Position < botHighRole {
+	if (role.Position < botHighRole) && (role.Permissions == 0) {
 		assignable = this.assignableRoleName(role.Name)
 	}
 	return
