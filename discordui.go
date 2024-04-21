@@ -31,9 +31,16 @@ const (
 	WeatherCmd  = "weather"
 	ShutdownCmd = "shutdown"
 
-	ColorOption   = "color"
-	GroupOption   = "group"
-	WeatherOption = "location"
+	ColorOption    = "color"
+	GroupOption    = "group"
+	LocationOption = "location"
+	ForecastOption = "forecast"
+)
+
+const (
+	CurrentForecast int = iota
+	TodayForecast
+	WeekForecast
 )
 
 type DiscordUI struct {
@@ -98,9 +105,28 @@ func (this *DiscordUI) Run() {
 	leaveCmdOptions := []*discordgo.ApplicationCommandOption{roleOption}
 	leaveCmd := &discordgo.ApplicationCommand{ID: LeaveCmd, ApplicationID: this.appID, Type: discordgo.ChatApplicationCommand, Name: LeaveCmd,
 		Description: "Leave a group (remove a pingable role from yourself)", Options: leaveCmdOptions}
-	weatherCmdOptions := []*discordgo.ApplicationCommandOption{{Type: discordgo.ApplicationCommandOptionString,
-		Name: WeatherOption, Description: "A postal code or location name, e.g. Paris, France", ChannelTypes: []discordgo.ChannelType{discordgo.ChannelTypeGuildText},
-		Required: true, Autocomplete: false}}
+	weatherCmdOptions := []*discordgo.ApplicationCommandOption{
+		{
+			Type: discordgo.ApplicationCommandOptionString, Name: LocationOption,
+			Description: "A postal code or location name, e.g. Paris, France", ChannelTypes: []discordgo.ChannelType{discordgo.ChannelTypeGuildText},
+			Required: true, Autocomplete: false,
+		}, {
+			Type: discordgo.ApplicationCommandOptionInteger, Name: ForecastOption,
+			Description: "Current conditions, today's forecast, or forecast for the next week?", ChannelTypes: []discordgo.ChannelType{discordgo.ChannelTypeGuildText},
+			Required: false, Choices: []*discordgo.ApplicationCommandOptionChoice{
+				{
+					Name:  "Current",
+					Value: 0,
+				}, {
+					Name:  "Today",
+					Value: 1,
+				}, {
+					Name:  "Week",
+					Value: 2,
+				},
+			},
+		},
+	}
 	weatherCmd := &discordgo.ApplicationCommand{ID: WeatherCmd, ApplicationID: this.appID, Type: discordgo.ChatApplicationCommand, Name: WeatherCmd,
 		Description: "Check the weather", Options: weatherCmdOptions}
 	shutdownCmd := &discordgo.ApplicationCommand{ID: ShutdownCmd, ApplicationID: this.appID, Type: discordgo.ChatApplicationCommand, Name: ShutdownCmd,
@@ -180,10 +206,19 @@ func (this *DiscordUI) interactionCreate(s *discordgo.Session, ic *discordgo.Int
 				this.handleLeaveCommand(ic.Interaction, ic.GuildID, ic.Member, options[0].StringValue())
 			}
 		case WeatherCmd:
-			if len(options) == 1 && options[0].Name == WeatherOption && options[0].Type == discordgo.ApplicationCommandOptionString {
+			if len(options) >= 1 {
+				forecast := CurrentForecast
+				location := ""
+				for _, opt := range options {
+					if opt.Name == LocationOption {
+						location = opt.StringValue()
+					} else if opt.Name == ForecastOption {
+						forecast = int(opt.IntValue())
+					}
+				}
 				var responseStr string
 				var err error
-				if responseStr, err = Forecast(options[0].StringValue()); err != nil {
+				if responseStr, err = Forecast(location, forecast); err != nil {
 					responseStr = err.Error()
 				}
 				respData := &discordgo.InteractionResponseData{Content: responseStr}
