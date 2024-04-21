@@ -584,12 +584,11 @@ func (this *DiscordUI) assignableRoleName(roleName string) (assignable bool) {
 	return
 }
 
+// Get all of the roles from the servers the bot is part of.
+// This will need to be updated if the bot is ever in more than 200 servers,
+// because that is the max.
 func (this *DiscordUI) getAllGuildRoles() {
-	joinedGuilds, err := this.session.UserGuilds(200, "", "", false)
-	if err != nil {
-		fmt.Printf("Error calling getGuildRoles: %s", err.Error())
-		return
-	}
+	joinedGuilds := this.session.State.Guilds
 	guildRoles := make(map[string][]*discordgo.Role)
 	for _, g := range joinedGuilds {
 		guild, err := this.session.Guild(g.ID)
@@ -604,6 +603,7 @@ func (this *DiscordUI) getAllGuildRoles() {
 	this.guildRoles = guildRoles
 }
 
+// Update the guild roles for the given guild, guildID.
 func (this *DiscordUI) updateGuildRoles(guildID string) {
 	guild, err := this.session.Guild(guildID)
 	if err == nil {
