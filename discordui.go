@@ -68,6 +68,9 @@ func (this *DiscordUI) Run() {
 
 	this.readyHandlerRemove = discord.AddHandler(this.ready)
 	this.interactionCreateHandlerRemove = discord.AddHandler(this.interactionCreate)
+	discord.AddHandler(this.guildRoleCreateHandler)
+	discord.AddHandler(this.guildRoleDeleteHandler)
+	discord.AddHandler(this.guildRoleUpdateHandler)
 
 	var minColorLen, maxColorLen int = 3, 7
 	var adminPermission int64 = 0x08
@@ -608,4 +611,22 @@ func (this *DiscordUI) updateGuildRoles(guildID string) {
 	} else {
 		fmt.Printf("Error calling updateGuildRoles: %s", err.Error())
 	}
+}
+
+func (this *DiscordUI) guildRoleCreateHandler(_ *discordgo.Session, event *discordgo.GuildRoleCreate) {
+	gid := event.GuildRole.GuildID
+	this.updateGuildRoles(gid)
+	fmt.Printf("Role creation detected. Updated roles for ID: %s", gid)
+}
+
+func (this *DiscordUI) guildRoleDeleteHandler(_ *discordgo.Session, event *discordgo.GuildRoleDelete) {
+	gid := event.GuildID
+	this.updateGuildRoles(gid)
+	fmt.Printf("Role delete detected. Updated roles for ID: %s", gid)
+}
+
+func (this *DiscordUI) guildRoleUpdateHandler(_ *discordgo.Session, event *discordgo.GuildRoleUpdate) {
+	gid := event.GuildRole.GuildID
+	this.updateGuildRoles(gid)
+	fmt.Printf("Role update detected. Updated roles for ID: %s", gid)
 }
