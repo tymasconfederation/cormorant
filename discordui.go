@@ -75,6 +75,9 @@ func (this *DiscordUI) Run() {
 
 	this.readyHandlerRemove = discord.AddHandler(this.ready)
 	this.interactionCreateHandlerRemove = discord.AddHandler(this.interactionCreate)
+	discord.AddHandler(this.guildRoleCreateHandler)
+	discord.AddHandler(this.guildRoleDeleteHandler)
+	discord.AddHandler(this.guildRoleUpdateHandler)
 
 	var minColorLen, maxColorLen int = 3, 7
 	var adminPermission int64 = 0x08
@@ -249,17 +252,14 @@ func (this *DiscordUI) interactionCreate(s *discordgo.Session, ic *discordgo.Int
 				partialName := strings.ToLower(options[0].StringValue())
 				// search for partialName in roles which the bot can assign which don't look like a user ID
 				var choices []*discordgo.ApplicationCommandOptionChoice = make([]*discordgo.ApplicationCommandOptionChoice, 0)
-				if groles, err := s.GuildRoles(ic.GuildID); err != nil {
-					fmt.Printf("Error calling GuildRoles(%v): %v\n", ic.GuildID, err.Error())
-				} else {
-					if botm, err := s.GuildMember(targGuild, this.botID); err == nil {
-						botHighRole := this.findBotRole(groles, botm)
-						for _, role := range groles {
-							if this.assignableRole(role, botHighRole) && strings.Contains(strings.ToLower(role.Name), partialName) {
-								// this is a possible choice
-								if !leaving || (leaving && this.hasRolePtr(ic.Member, role)) {
-									choices = append(choices, &discordgo.ApplicationCommandOptionChoice{Name: role.Name, Value: role.Name})
-								}
+				groles := this.guildRoles[targGuild]
+				if botm, err := s.GuildMember(targGuild, this.botID); err == nil {
+					botHighRole := this.findBotRole(groles, botm)
+					for _, role := range groles {
+						if this.assignableRole(role, botHighRole) && strings.Contains(strings.ToLower(role.Name), partialName) {
+							// this is a possible choice
+							if !leaving || (leaving && this.hasRolePtr(ic.Member, role)) {
+								choices = append(choices, &discordgo.ApplicationCommandOptionChoice{Name: role.Name, Value: role.Name})
 							}
 						}
 					}
@@ -618,12 +618,11 @@ func (this *DiscordUI) assignableRoleName(roleName string) (assignable bool) {
 	return
 }
 
+// Get all of the roles from the servers the bot is part of.
+// This will need to be updated if the bot is ever in more than 200 servers,
+// because that is the max.
 func (this *DiscordUI) getAllGuildRoles() {
-	joinedGuilds, err := this.session.UserGuilds(200, "", "", false)
-	if err != nil {
-		fmt.Printf("Error calling getGuildRoles: %s", err.Error())
-		return
-	}
+	joinedGuilds := this.session.State.Guilds
 	guildRoles := make(map[string][]*discordgo.Role)
 	for _, g := range joinedGuilds {
 		guild, err := this.session.Guild(g.ID)
@@ -638,11 +637,30 @@ func (this *DiscordUI) getAllGuildRoles() {
 	this.guildRoles = guildRoles
 }
 
+// Update the guild roles for the given guild, guildID.
 func (this *DiscordUI) updateGuildRoles(guildID string) {
 	guild, err := this.session.Guild(guildID)
 	if err == nil {
 		this.guildRoles[guildID] = guild.Roles
 	} else {
-		fmt.Printf("Error calling updateGuildRoles: %s", err.Error())
+		fmt.Printf("Error calling updateGuildRoles: %s\n", err.Error())
 	}
+}
+
+func (this *DiscordUI) guildRoleCreateHandler(_ *discordgo.Session, event *discordgo.GuildRoleCreate) {
+	gid := event.GuildRole.GuildID
+	this.updateGuildRoles(gid)
+	fmt.Printf("Role creation detected. Updated roles for ID: %s\n", gid)
+}
+
+func (this *DiscordUI) guildRoleDeleteHandler(_ *discordgo.Session, event *discordgo.GuildRoleDelete) {
+	gid := event.GuildID
+	this.updateGuildRoles(gid)
+	fmt.Printf("Role delete detected. Updated roles for ID: %s\n", gid)
+}
+
+func (this *DiscordUI) guildRoleUpdateHandler(_ *discordgo.Session, event *discordgo.GuildRoleUpdate) {
+	gid := event.GuildRole.GuildID
+	this.updateGuildRoles(gid)
+	fmt.Printf("Role update detected. Updated roles for ID: %s\n", gid)
 }
