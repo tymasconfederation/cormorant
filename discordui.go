@@ -217,17 +217,14 @@ func (this *DiscordUI) interactionCreate(s *discordgo.Session, ic *discordgo.Int
 				partialName := strings.ToLower(options[0].StringValue())
 				// search for partialName in roles which the bot can assign which don't look like a user ID
 				var choices []*discordgo.ApplicationCommandOptionChoice = make([]*discordgo.ApplicationCommandOptionChoice, 0)
-				if groles, err := s.GuildRoles(ic.GuildID); err != nil {
-					fmt.Printf("Error calling GuildRoles(%v): %v\n", ic.GuildID, err.Error())
-				} else {
-					if botm, err := s.GuildMember(targGuild, this.botID); err == nil {
-						botHighRole := this.findBotRole(groles, botm)
-						for _, role := range groles {
-							if this.assignableRole(role, botHighRole) && strings.Contains(strings.ToLower(role.Name), partialName) {
-								// this is a possible choice
-								if !leaving || (leaving && this.hasRolePtr(ic.Member, role)) {
-									choices = append(choices, &discordgo.ApplicationCommandOptionChoice{Name: role.Name, Value: role.Name})
-								}
+				groles := this.guildRoles[targGuild]
+				if botm, err := s.GuildMember(targGuild, this.botID); err == nil {
+					botHighRole := this.findBotRole(groles, botm)
+					for _, role := range groles {
+						if this.assignableRole(role, botHighRole) && strings.Contains(strings.ToLower(role.Name), partialName) {
+							// this is a possible choice
+							if !leaving || (leaving && this.hasRolePtr(ic.Member, role)) {
+								choices = append(choices, &discordgo.ApplicationCommandOptionChoice{Name: role.Name, Value: role.Name})
 							}
 						}
 					}
@@ -609,24 +606,24 @@ func (this *DiscordUI) updateGuildRoles(guildID string) {
 	if err == nil {
 		this.guildRoles[guildID] = guild.Roles
 	} else {
-		fmt.Printf("Error calling updateGuildRoles: %s", err.Error())
+		fmt.Printf("Error calling updateGuildRoles: %s\n", err.Error())
 	}
 }
 
 func (this *DiscordUI) guildRoleCreateHandler(_ *discordgo.Session, event *discordgo.GuildRoleCreate) {
 	gid := event.GuildRole.GuildID
 	this.updateGuildRoles(gid)
-	fmt.Printf("Role creation detected. Updated roles for ID: %s", gid)
+	fmt.Printf("Role creation detected. Updated roles for ID: %s\n", gid)
 }
 
 func (this *DiscordUI) guildRoleDeleteHandler(_ *discordgo.Session, event *discordgo.GuildRoleDelete) {
 	gid := event.GuildID
 	this.updateGuildRoles(gid)
-	fmt.Printf("Role delete detected. Updated roles for ID: %s", gid)
+	fmt.Printf("Role delete detected. Updated roles for ID: %s\n", gid)
 }
 
 func (this *DiscordUI) guildRoleUpdateHandler(_ *discordgo.Session, event *discordgo.GuildRoleUpdate) {
 	gid := event.GuildRole.GuildID
 	this.updateGuildRoles(gid)
-	fmt.Printf("Role update detected. Updated roles for ID: %s", gid)
+	fmt.Printf("Role update detected. Updated roles for ID: %s\n", gid)
 }
