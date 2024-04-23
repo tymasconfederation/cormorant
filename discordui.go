@@ -284,10 +284,6 @@ func (this *DiscordUI) interactionCreate(s *discordgo.Session, ic *discordgo.Int
 }
 
 func (this *DiscordUI) handleJoinCommand(interaction *discordgo.Interaction, targGuild string, member *discordgo.Member, groupParam string) {
-	// TODO: Change this to use the cached version of the role list.
-	// TODO: Case insensitive search.
-	// TODO: Give message when a role isn't assignable.
-	// TODO: Edit assignableRole() to handle case of a role not existing. (Helper function maybe?)
 	s := this.session
 	response := ""
 	// mroles := member.Roles
