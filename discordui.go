@@ -286,65 +286,47 @@ func (this *DiscordUI) interactionCreate(s *discordgo.Session, ic *discordgo.Int
 func (this *DiscordUI) handleJoinCommand(interaction *discordgo.Interaction, targGuild string, member *discordgo.Member, groupParam string) {
 	s := this.session
 	response := ""
-	mroles := member.Roles
-	groles, err := s.GuildRoles(targGuild)
+	// mroles := member.Roles
+	groles := this.guildRoles[targGuild]
 	groupParam = strings.TrimPrefix(groupParam, "@")
+	botm, err := s.GuildMember(targGuild, this.botID)
 	if err != nil {
-		response = "Failed to retrieve list of guild roles: " + err.Error()
+		response = fmt.Sprintf("Unable to find guild member %s (the bot) in guild %s", this.botID, targGuild)
 	} else {
-		botm, err := s.GuildMember(targGuild, this.botID)
-		if err != nil {
-			response = fmt.Sprintf("Unable to find guild member %s (the bot) in guild %s", this.botID, targGuild)
-		} else {
-			botHighRole := this.findBotRole(groles, botm)
-			var roleFound *discordgo.Role = nil
-			fmt.Printf("Searching roles for %v.\n", groupParam)
-			for i := 0; i < len(groles); i++ {
-				if groles[i].Name == groupParam {
-					roleFound = groles[i]
-					break
-				}
-			}
-			if roleFound != nil {
-				if this.assignableRole(roleFound, botHighRole) {
-					// make sure they don't already have the role
-					hasRole := false
-					for i := 0; i < len(mroles); i++ {
-						if mroles[i] == groupParam {
-							hasRole = true
-							break
-						}
-					}
-					if !hasRole {
-						// assign the user to the specified role
-						err = s.GuildMemberRoleAdd(targGuild, member.User.ID, roleFound.ID)
-						if err != nil {
-							response = fmt.Sprintf("Failed to assign new role %s: %s", roleFound.Name, err.Error())
-						} else {
-							response = fmt.Sprintf("Added %v to `@%v`", member.DisplayName(), roleFound.Name)
-						}
-					}
-				}
-			} else if this.assignableRoleName(groupParam) {
-				// create a new role with the specified name
-				newColor := 0xe67e22
-				hoist := false
-				var permissions int64 = 0
-				mentionable := true
-				roleParams := &discordgo.RoleParams{Name: groupParam, Color: &newColor, Hoist: &hoist, Permissions: &permissions, Mentionable: &mentionable}
-				if role, err := s.GuildRoleCreate(targGuild, roleParams); err != nil {
-					response = fmt.Sprintf("Failed to create new role %v: %v", groupParam, err.Error())
+		botHighRole := this.findBotRole(groles, botm)
+		var roleFound *discordgo.Role = nil
+		fmt.Printf("Searching roles for %v.\n", groupParam)
+		roleFound = this.guildHasRole(groupParam, groles)
+		if roleFound != nil {
+			if this.assignableRole(roleFound, botHighRole) {
+				err = s.GuildMemberRoleAdd(targGuild, member.User.ID, roleFound.ID)
+				if err != nil {
+					response = fmt.Sprintf("Failed to assign new role %s: %s", roleFound.Name, err.Error())
 				} else {
-					err = s.GuildMemberRoleAdd(targGuild, member.User.ID, role.ID)
-					if err != nil {
-						response = fmt.Sprintf("Failed to assign new role %s: %s", role.Name, err.Error())
-					} else {
-						response = this.sortGuildRoles(groles, s, targGuild, role, botm, true, fmt.Sprintf("Added %v to new role `@%v`.", member.DisplayName(), role.Name))
-					}
+					response = fmt.Sprintf("Added %v to `@%v`", member.DisplayName(), roleFound.Name)
 				}
 			} else {
 				response = fmt.Sprintf("Unable to assign role: %s", groupParam)
 			}
+		} else if this.assignableRoleName(groupParam) {
+			// create a new role with the specified name
+			newColor := 0xe67e22
+			hoist := false
+			var permissions int64 = 0
+			mentionable := true
+			roleParams := &discordgo.RoleParams{Name: groupParam, Color: &newColor, Hoist: &hoist, Permissions: &permissions, Mentionable: &mentionable}
+			if role, err := s.GuildRoleCreate(targGuild, roleParams); err != nil {
+				response = fmt.Sprintf("Failed to create new role %v: %v", groupParam, err.Error())
+			} else {
+				err = s.GuildMemberRoleAdd(targGuild, member.User.ID, role.ID)
+				if err != nil {
+					response = fmt.Sprintf("Failed to assign new role %s: %s", role.Name, err.Error())
+				} else {
+					response = this.sortGuildRoles(groles, s, targGuild, role, botm, true, fmt.Sprintf("Added %v to new role `@%v`.", member.DisplayName(), role.Name))
+				}
+			}
+		} else {
+			response = fmt.Sprintf("Unable to assign role: %s", groupParam)
 		}
 	}
 	respData := &discordgo.InteractionResponseData{Content: response,
@@ -663,4 +645,16 @@ func (this *DiscordUI) guildRoleUpdateHandler(_ *discordgo.Session, event *disco
 	gid := event.GuildRole.GuildID
 	this.updateGuildRoles(gid)
 	fmt.Printf("Role update detected. Updated roles for ID: %s\n", gid)
+}
+
+func (this *DiscordUI) guildHasRole(roleName string, roles []*discordgo.Role) (role *discordgo.Role) {
+	role = nil
+	roleName = strings.ToLower(roleName)
+	for _, r := range roles {
+		if strings.ToLower(r.Name) == roleName {
+			role = r
+			break
+		}
+	}
+	return
 }
