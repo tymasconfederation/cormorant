@@ -16,19 +16,7 @@ const enableRecover = true
 // It's compiled and stored in this var the first time extractErrorMessage is called.
 var regexExtractErr *regexp.Regexp
 
-type MsgSource struct {
-	channel string
-	userID  string
-}
-
-func Recover() {
-	if enableRecover {
-		if r := recover(); r != nil {
-			fmt.Println("Error in main(): ", r)
-		}
-	}
-}
-
+// Constants related to the bot's discord commands and their options
 const (
 	ColorCmd    = "color"
 	JoinCmd     = "join"
@@ -42,35 +30,23 @@ const (
 	ForecastOption = "forecast"
 )
 
-const (
-	CurrentForecast int = iota
-	TodayForecast
-	WeekForecast
-)
-
+// DiscordUI holds data needed to interact with Discord.
 type DiscordUI struct {
-	session                        *discordgo.Session
-	appID                          string
-	botToken                       string
-	runningChan                    chan int
-	readyHandlerRemove             func()
-	interactionCreateHandlerRemove func()
-	botID                          string
-	guildChannels                  map[string]string
-	rebootRequested                int
-	guildRoles                     map[string][]*discordgo.Role
+	session     *discordgo.Session           // session is the currently open Discord session
+	appID       string                       // appID is the bot's application ID, needed to connect to Discord
+	botToken    string                       // botToken is the bot's auth token, needed to connect to Discord
+	runningChan chan int                     // runningChan is a channel opened in Main to which we send a number (the exit code to be returned) when we are ready to exit.
+	botID       string                       // the bot's User ID, used to look up member information for the bot
+	guildRoles  map[string][]*discordgo.Role // The roles for each guild the bot is in
 }
 
-func (this *DiscordUI) RebootRequested() int {
-	return this.rebootRequested
+// NewDiscordUI returns a new DiscordUI object.
+func NewDiscordUI(appID string, botToken string, runningChan chan int) *DiscordUI {
+	return &DiscordUI{session: nil, appID: appID, botToken: botToken, runningChan: runningChan,
+		botID: ""}
 }
 
-func NewDiscordUI(appID string, botToken string, runningChan chan int) DiscordUI {
-	d := DiscordUI{session: nil, appID: appID, botToken: botToken, runningChan: runningChan, readyHandlerRemove: nil,
-		botID: "", guildChannels: make(map[string]string)}
-	return d
-}
-
+// Run registers things and connects to discord.
 func (this *DiscordUI) Run() {
 	discord, err := discordgo.New("Bot " + this.botToken)
 	if err != nil {
@@ -78,8 +54,8 @@ func (this *DiscordUI) Run() {
 	}
 	this.session = discord
 
-	this.readyHandlerRemove = discord.AddHandler(this.ready)
-	this.interactionCreateHandlerRemove = discord.AddHandler(this.interactionCreate)
+	discord.AddHandler(this.ready)
+	discord.AddHandler(this.interactionCreate)
 	discord.AddHandler(this.guildRoleCreateHandler)
 	discord.AddHandler(this.guildRoleDeleteHandler)
 	discord.AddHandler(this.guildRoleUpdateHandler)
@@ -157,6 +133,7 @@ func (this *DiscordUI) Run() {
 	fmt.Println("Commands registered.")
 }
 
+// ready is our ready event handler. It retrieves and records all the guild roles in memory so they can be looked up faster.
 func (this *DiscordUI) ready(s *discordgo.Session, m *discordgo.Ready) {
 	this.botID = m.User.ID
 	fmt.Println("Getting all guild roles.")
@@ -164,32 +141,33 @@ func (this *DiscordUI) ready(s *discordgo.Session, m *discordgo.Ready) {
 	fmt.Println("Guild roles retrieved.")
 }
 
+// hasRolePtr returns true if the specified member has the specified role, or false otherwise.
 func (this *DiscordUI) hasRolePtr(m *discordgo.Member, role *discordgo.Role) bool {
-	for i := 0; i < len(m.Roles); i++ {
-		if m.Roles[i] == role.ID {
+	for _, r := range m.Roles {
+		if r == role.ID {
 			return true
 		}
 	}
 	return false
 }
 
+// hasRole looks up the guild member with the specified user ID, and if it is found in the specified guild, returns true if it has the specified role.
+// Otherwise, it returns false.
 func (this *DiscordUI) hasRole(guild, userID, roleID string) bool {
 	m, err := this.session.GuildMember(guild, userID)
 	if err != nil {
-		//this.Error(fmt.Sprintf("hasRole(%s, %s, %s) = %s", guild, userID, roleID, extractErrorMessage(err)))
 		return false
 	} else {
-		for i := 0; i < len(m.Roles); i++ {
-			if m.Roles[i] == roleID {
-				//this.Error(fmt.Sprintf("hasRole(%s, %s, %s) = true", guild, userID, roleID))
+		for _, r := range m.Roles {
+			if r == roleID {
 				return true
 			}
 		}
 	}
-	//this.Error(fmt.Sprintf("hasRole(%s, %s, %s) = false", guild, userID, roleID))
 	return false
 }
 
+// interactionCreate is our handler for interactionCreate events. It is called by discordgo when a user uses a command, and for autocomplete on command options.
 func (this *DiscordUI) interactionCreate(s *discordgo.Session, ic *discordgo.InteractionCreate) {
 	if ic.Type == discordgo.InteractionApplicationCommand {
 		cmdData := ic.ApplicationCommandData()
@@ -199,7 +177,7 @@ func (this *DiscordUI) interactionCreate(s *discordgo.Session, ic *discordgo.Int
 		case ColorCmd:
 			if len(options) == 1 && options[0].Name == ColorOption && options[0].Type == discordgo.ApplicationCommandOptionString {
 				hexCode := options[0].StringValue()
-				// parse the color code which can be 3 ("FFF"), 6 ("FFFFFF"), or 7 ("#FFFFFF") characters
+				// parse the color code which can be 3 ("FFF"), 4 ("#FFF"), 6 ("FFFFFF"), or 7 ("#FFFFFF") characters
 				// find user's color role
 				// if it doesn't exist, create it and assign the color to it
 				// if it does exist, assign the color to the role
@@ -221,7 +199,7 @@ func (this *DiscordUI) interactionCreate(s *discordgo.Session, ic *discordgo.Int
 					if opt.Name == LocationOption {
 						location = opt.StringValue()
 					} else if opt.Name == ForecastOption {
-						forecast = int(opt.IntValue())
+						forecast = ForecastType(opt.IntValue())
 					}
 				}
 				var responseStr string
@@ -288,6 +266,8 @@ func (this *DiscordUI) interactionCreate(s *discordgo.Session, ic *discordgo.Int
 	}
 }
 
+// handleJoinCommand processes the /join command. It determines whether groupParam is a role that exists, determines whether the user should be able to join it, and
+// adds them to it (creating it if necessary) if they should be able to join it. It sends back an error message if they shouldn't be able to.
 func (this *DiscordUI) handleJoinCommand(interaction *discordgo.Interaction, targGuild string, member *discordgo.Member, groupParam string) {
 	s := this.session
 	response := ""
@@ -342,53 +322,51 @@ func (this *DiscordUI) handleJoinCommand(interaction *discordgo.Interaction, tar
 	}
 }
 
+// handleLeaveCommand processes the /leave command. It checks whether the member is in a role named groupParam, determines if it can remove them from it,
+// and then does so if it can.
 func (this *DiscordUI) handleLeaveCommand(interaction *discordgo.Interaction, targGuild string, member *discordgo.Member, groupParam string) {
 	s := this.session
 	response := ""
 	mroles := member.Roles
-	groles, err := s.GuildRoles(targGuild)
+	groles := this.guildRoles[targGuild]
 	groupParam = strings.TrimPrefix(groupParam, "@")
+	botm, err := s.GuildMember(targGuild, this.botID)
 	if err != nil {
-		response = "Failed to retrieve list of guild roles: " + extractErrorMessage(err)
+		response = fmt.Sprintf("Unable to find guild member %s (the bot) in guild %s", this.botID, targGuild)
 	} else {
-		botm, err := s.GuildMember(targGuild, this.botID)
-		if err != nil {
-			response = fmt.Sprintf("Unable to find guild member %s (the bot) in guild %s", this.botID, targGuild)
-		} else {
-			botHighRole := this.findBotRole(groles, botm)
-			var roleFound *discordgo.Role = nil
-			fmt.Printf("Searching roles for %v.\n", groupParam)
-			for i := 0; i < len(groles); i++ {
-				if groles[i].Name == groupParam {
-					roleFound = groles[i]
-					break
-				}
+		botHighRole := this.findBotRole(groles, botm)
+		var roleFound *discordgo.Role = nil
+		fmt.Printf("Searching roles for %v.\n", groupParam)
+		for _, r := range groles {
+			if r.Name == groupParam {
+				roleFound = r
+				break
 			}
-			if roleFound != nil {
-				if this.assignableRole(roleFound, botHighRole) {
-					// make sure they already have the role
-					hasRole := false
-					for i := 0; i < len(mroles); i++ {
-						if mroles[i] == roleFound.ID {
-							hasRole = true
-							break
-						}
+		}
+		if roleFound != nil {
+			if this.assignableRole(roleFound, botHighRole) {
+				// make sure they already have the role
+				hasRole := false
+				for _, r := range mroles {
+					if r == roleFound.ID {
+						hasRole = true
+						break
 					}
-					if hasRole {
-						// remove the user from the specified role
-						err = s.GuildMemberRoleRemove(targGuild, member.User.ID, roleFound.ID)
-						if err != nil {
-							response = fmt.Sprintf("Failed to remove role %s: %s", roleFound.Name, extractErrorMessage(err))
-						} else {
-							response = fmt.Sprintf("Removed %v from `@%v`", member.DisplayName(), roleFound.Name)
-						}
+				}
+				if hasRole {
+					// remove the user from the specified role
+					err = s.GuildMemberRoleRemove(targGuild, member.User.ID, roleFound.ID)
+					if err != nil {
+						response = fmt.Sprintf("Failed to remove role %s: %s", roleFound.Name, extractErrorMessage(err))
 					} else {
-						response = fmt.Sprintf("You aren't in the role %v!", groupParam)
+						response = fmt.Sprintf("Removed %v from `@%v`", member.DisplayName(), roleFound.Name)
 					}
+				} else {
+					response = fmt.Sprintf("You aren't in the role %v!", groupParam)
 				}
-			} else if this.assignableRoleName(groupParam) {
-				response = fmt.Sprintf("Role %v not found!", groupParam)
 			}
+		} else if this.assignableRoleName(groupParam) {
+			response = fmt.Sprintf("Role %v not found!", groupParam)
 		}
 	}
 	respData := &discordgo.InteractionResponseData{Content: response,
@@ -399,6 +377,9 @@ func (this *DiscordUI) handleLeaveCommand(interaction *discordgo.Interaction, ta
 	}
 }
 
+// handleColorCommand processes the /color command. It makes sure colorParam is a valid color code
+// (either 3 or 6 characters, all numbers, after removing the # if there is one), and then takes care of the role management stuff
+// involved in setting the user's color.
 func (this *DiscordUI) handleColorCommand(interaction *discordgo.Interaction, targGuild string, member *discordgo.Member, colorParam string) {
 	s := this.session
 	colorParam = strings.TrimPrefix(colorParam, "#")
@@ -412,6 +393,8 @@ func (this *DiscordUI) handleColorCommand(interaction *discordgo.Interaction, ta
 	response := ""
 	if err != nil {
 		response = "Failed to parse color code."
+	} else if len(colorParam) != 6 {
+		response = fmt.Sprintf("Color code needs to be either 3 or 6 numbers. We received %v.", len(colorParam))
 	} else {
 		newColor := int(newColor64)
 		b := newColor & 0xff
@@ -422,54 +405,50 @@ func (this *DiscordUI) handleColorCommand(interaction *discordgo.Interaction, ta
 		if y < 72 {
 			response = "Sorry, that's too dark."
 		} else {
-			groles, err := s.GuildRoles(targGuild)
+			groles := this.guildRoles[targGuild]
+			botm, err := s.GuildMember(targGuild, this.botID)
 			if err != nil {
-				response = "Failed to retrieve list of guild roles: " + extractErrorMessage(err)
+				response = fmt.Sprintf("Unable to find guild member %s (the bot) in guild %s", this.botID, targGuild)
 			} else {
-				botm, err := s.GuildMember(targGuild, this.botID)
-				if err != nil {
-					response = fmt.Sprintf("Unable to find guild member %s (the bot) in guild %s", this.botID, targGuild)
-				} else {
-					var roleFound *discordgo.Role = nil
-					fmt.Printf("Searching roles for %v.\n", member.User.ID)
-					for i := 0; i < len(groles); i++ {
-						if strings.Contains(groles[i].Name, member.User.ID) {
-							roleFound = groles[i]
-							//change color of existing role
-							hoist := groles[i].Hoist
-							permissions := groles[i].Permissions
-							mentionable := groles[i].Mentionable
-							fmt.Printf("Found it.")
-							roleParams := &discordgo.RoleParams{Name: groles[i].Name, Color: &newColor, Hoist: &hoist, Permissions: &permissions, Mentionable: &mentionable}
-							var newRole *discordgo.Role
-							newRole, err = s.GuildRoleEdit(targGuild, groles[i].ID, roleParams)
-							if err != nil {
-								response = fmt.Sprintf("Failed to change role color: %s", extractErrorMessage(err))
-								break
-							} else {
-								groles[i] = newRole
-								response = "Role color changed successfully."
-							}
+				var roleFound *discordgo.Role = nil
+				fmt.Printf("Searching roles for %v.\n", member.User.ID)
+				for i := 0; i < len(groles); i++ {
+					if strings.Contains(groles[i].Name, member.User.ID) {
+						roleFound = groles[i]
+						//change color of existing role
+						hoist := groles[i].Hoist
+						permissions := groles[i].Permissions
+						mentionable := groles[i].Mentionable
+						fmt.Printf("Found it.")
+						roleParams := &discordgo.RoleParams{Name: groles[i].Name, Color: &newColor, Hoist: &hoist, Permissions: &permissions, Mentionable: &mentionable}
+						var newRole *discordgo.Role
+						newRole, err = s.GuildRoleEdit(targGuild, groles[i].ID, roleParams)
+						if err != nil {
+							response = fmt.Sprintf("Failed to change role color: %s", extractErrorMessage(err))
+							break
+						} else {
+							groles[i] = newRole
+							response = "Role color changed successfully."
 						}
 					}
-					if roleFound == nil {
-						fmt.Printf("Did not find it. Creating new role.\n")
-						hoist := false
-						var permissions int64 = 0
-						mentionable := false
-						roleParams := &discordgo.RoleParams{Name: member.User.ID, Color: &newColor, Hoist: &hoist, Permissions: &permissions, Mentionable: &mentionable}
-						role, err := s.GuildRoleCreate(targGuild, roleParams)
-						roleFound = role
+				}
+				if roleFound == nil {
+					fmt.Printf("Did not find it. Creating new role.\n")
+					hoist := false
+					var permissions int64 = 0
+					mentionable := false
+					roleParams := &discordgo.RoleParams{Name: member.User.ID, Color: &newColor, Hoist: &hoist, Permissions: &permissions, Mentionable: &mentionable}
+					role, err := s.GuildRoleCreate(targGuild, roleParams)
+					roleFound = role
+					if err != nil {
+						response = "I don't think we have the manage roles permission."
+					} else {
+						fmt.Printf("Role created. Assigning it to the user now.\n")
+						err = s.GuildMemberRoleAdd(targGuild, member.User.ID, role.ID)
 						if err != nil {
-							response = "I don't think we have the manage roles permission."
+							response = fmt.Sprintf("Failed to assign new role %s: %s", role.Name, extractErrorMessage(err))
 						} else {
-							fmt.Printf("Role created. Assigning it to the user now.\n")
-							err = s.GuildMemberRoleAdd(targGuild, member.User.ID, role.ID)
-							if err != nil {
-								response = fmt.Sprintf("Failed to assign new role %s: %s", role.Name, extractErrorMessage(err))
-							} else {
-								response = this.sortGuildRoles(groles, s, targGuild, role, botm, false, "Role color set successfully.")
-							}
+							response = this.sortGuildRoles(groles, s, targGuild, role, botm, false, "Role color set successfully.")
 						}
 					}
 				}
@@ -485,6 +464,9 @@ func (this *DiscordUI) handleColorCommand(interaction *discordgo.Interaction, ta
 	}
 }
 
+// sortGuildRoles sorts the new role into the specified guild's roles. botm is the bot's *Member,
+// afterColors indicates whether the role should go after the colors (if false it goes after the bot's role instead),
+// success is the string to return as a response if the guild roles are sorted successfully.
 func (this *DiscordUI) sortGuildRoles(groles []*discordgo.Role, s *discordgo.Session, targGuild string, role *discordgo.Role, botm *discordgo.Member, afterColors bool, success string) string {
 	//Sorting guild roles is far more complicated than removing people from them,
 	//but also safer in that if another important role is below the bot's role, it
@@ -492,36 +474,32 @@ func (this *DiscordUI) sortGuildRoles(groles []*discordgo.Role, s *discordgo.Ses
 	var err error
 	var response string
 	fmt.Printf("Sorting guild roles.\n")
-	groles, err = s.GuildRoles(targGuild)
-	if err != nil {
-		response = fmt.Sprintf("Failed to assign new role %s: %s", role.Name, extractErrorMessage(err))
+	groles = this.guildRoles[targGuild]
+	var setRoleTo int
+	if afterColors {
+		setRoleTo = 1
 	} else {
-		var setRoleTo int
-		if afterColors {
-			setRoleTo = 1
-		} else {
-			setRoleTo = this.findBotRole(groles, botm)
+		setRoleTo = this.findBotRole(groles, botm)
+	}
+	for i := 0; i < len(groles); i++ {
+		if groles[i].ID == role.ID {
+			groles[i].Position = setRoleTo
+		} else if groles[i].Position >= setRoleTo {
+			groles[i].Position += 1
 		}
-		for i := 0; i < len(groles); i++ {
-			if groles[i].ID == role.ID {
-				groles[i].Position = setRoleTo
-			} else if groles[i].Position >= setRoleTo {
-				groles[i].Position += 1
-			}
-		}
-		sort.Sort(discordgo.Roles(groles))
+	}
+	sort.Sort(discordgo.Roles(groles))
 
-		groles, err = s.GuildRoleReorder(targGuild, groles)
-		if err != nil {
-			response = fmt.Sprintf("Failed to reorder roles: %s", extractErrorMessage(err))
-		} else {
-			response = success
-		}
-
+	groles, err = s.GuildRoleReorder(targGuild, groles)
+	if err != nil {
+		response = fmt.Sprintf("Failed to reorder roles: %s", extractErrorMessage(err))
+	} else {
+		response = success
 	}
 	return response
 }
 
+// FindRole finds the role with the ID mrole in groles and returns it, or nil if it isn't found.
 func (this *DiscordUI) FindRole(groles []*discordgo.Role, mrole string) *discordgo.Role {
 	for i := 0; i < len(groles); i++ {
 		if groles[i].ID == mrole {
@@ -531,19 +509,7 @@ func (this *DiscordUI) FindRole(groles []*discordgo.Role, mrole string) *discord
 	return nil
 }
 
-func (this *DiscordUI) isValidChannel(guild string, ch string) bool {
-	xs, err := this.session.GuildChannels(guild)
-	if err != nil {
-		return false
-	}
-	for _, x := range xs {
-		if x.ID == ch && !(x.Type == discordgo.ChannelTypeDM || x.Type == discordgo.ChannelTypeGroupDM) {
-			return true
-		}
-	}
-	return false
-}
-
+// findBotRole returns the index in the roles list of the bot's highest role (in terms of position numbers), or -1 if the bot has no roles.
 func (this *DiscordUI) findBotRole(groles []*discordgo.Role, botm *discordgo.Member) (botHighRole int) {
 	botHighRole = -1
 	for i := 0; i < len(botm.Roles); i++ {
@@ -557,29 +523,8 @@ func (this *DiscordUI) findBotRole(groles []*discordgo.Role, botm *discordgo.Mem
 	return
 }
 
-func (this *DiscordUI) send(channel string, message string) {
-	_, err := this.session.ChannelMessageSend(channel, message)
-	if err != nil {
-		fmt.Printf("Error calling ChannelMessageSend(\"%s\", \"%s\"): %s\n", channel, message, extractErrorMessage(err))
-	}
-}
-
-func (this *DiscordUI) announce(message string) {
-	for _, channel := range this.guildChannels {
-		this.send(channel, message)
-	}
-}
-
-func (this *DiscordUI) ExtractUserID(s string) string {
-	if strings.HasPrefix(s, "<@") && strings.HasSuffix(s, ">") {
-		return strings.TrimSuffix(strings.TrimPrefix(s, "<@"), ">")
-	} else {
-		return ""
-	}
-}
-
-// Returns whether the role should be assignable by the bot.
-// This is done by checking if the role is both below the bot in the role list and has no permissions granted
+// assignableRole returns whether the role should be assignable by the bot.
+// This is done by checking if the role is both below the bot in the role list and has no permissions granted, and by calling assignableRoleName.
 func (this *DiscordUI) assignableRole(role *discordgo.Role, botHighRole int) (assignable bool) {
 	assignable = false
 	if (role.Position < botHighRole) && (role.Permissions == 0) {
@@ -588,6 +533,8 @@ func (this *DiscordUI) assignableRole(role *discordgo.Role, botHighRole int) (as
 	return
 }
 
+// assignableRoleName checks whether the specified roleName is a name which can be used for a group role. It makes sure the role name isn't only digits,
+// because that's used for color roles, and that the name isn't "everyone". It doesn't make sure the role doesn't already exist - that is checked elsewhere.
 func (this *DiscordUI) assignableRoleName(roleName string) (assignable bool) {
 	assignable = false
 	onlyDigits := true
@@ -605,7 +552,7 @@ func (this *DiscordUI) assignableRoleName(roleName string) (assignable bool) {
 	return
 }
 
-// Get all of the roles from the servers the bot is part of.
+// getAllGuildRoles gets all of the roles from the servers the bot is part of.
 // This will need to be updated if the bot is ever in more than 200 servers,
 // because that is the max.
 func (this *DiscordUI) getAllGuildRoles() {
@@ -624,7 +571,7 @@ func (this *DiscordUI) getAllGuildRoles() {
 	this.guildRoles = guildRoles
 }
 
-// Update the guild roles for the given guild, guildID.
+// updateGuildRoles updates the guild roles for the guild with the specified guild ID.
 func (this *DiscordUI) updateGuildRoles(guildID string) {
 	guild, err := this.session.Guild(guildID)
 	if err == nil {
@@ -634,24 +581,29 @@ func (this *DiscordUI) updateGuildRoles(guildID string) {
 	}
 }
 
+// guildRoleCreateHandler is called when a new role is created in a guild the bot is in, and calls updateGuildRoles.
 func (this *DiscordUI) guildRoleCreateHandler(_ *discordgo.Session, event *discordgo.GuildRoleCreate) {
 	gid := event.GuildRole.GuildID
 	this.updateGuildRoles(gid)
 	fmt.Printf("Role creation detected. Updated roles for ID: %s\n", gid)
 }
 
+// guildRoleDeleteHandler is called when an existing role is deleted in a guild the bot is in, and calls updateGuildRoles.
 func (this *DiscordUI) guildRoleDeleteHandler(_ *discordgo.Session, event *discordgo.GuildRoleDelete) {
 	gid := event.GuildID
 	this.updateGuildRoles(gid)
 	fmt.Printf("Role delete detected. Updated roles for ID: %s\n", gid)
 }
 
+// guildRoleUpdateHandler is called when an existing role is updated in a guild the bot is in, and calls updateGuildRoles.
 func (this *DiscordUI) guildRoleUpdateHandler(_ *discordgo.Session, event *discordgo.GuildRoleUpdate) {
 	gid := event.GuildRole.GuildID
 	this.updateGuildRoles(gid)
 	fmt.Printf("Role update detected. Updated roles for ID: %s\n", gid)
 }
 
+// guildHasRole checks if there is a role in roles whose name matches roleName case-insensitively, and if so, it returns that role.
+// If not, it returns nil.
 func (this *DiscordUI) guildHasRole(roleName string, roles []*discordgo.Role) (role *discordgo.Role) {
 	role = nil
 	roleName = strings.ToLower(roleName)

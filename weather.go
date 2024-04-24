@@ -14,6 +14,7 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
+// weatherCodeName is a map for turning weather codes returned by open-meteo into emojis and brief descriptions.
 var weatherCodeName map[int]string = map[int]string{
 	0:  ":sun: Clear sky",
 	1:  ":white_sun_small_cloud: Mainly clear",
@@ -45,6 +46,16 @@ var weatherCodeName map[int]string = map[int]string{
 	99: ":thunder_cloud_rain: Thunderstorm with heavy hail",
 }
 
+// ForecastType indicates what type of forecast the user wants.
+type ForecastType int
+
+// Constants representing which forecast the user is requesting
+const (
+	CurrentForecast ForecastType = iota // The current conditions
+	TodayForecast                       // Today's forecast
+	WeekForecast                        // The forecast for the next week
+)
+
 // Geocode calls the open-meteo geocoding API to get information a postal code or place name,
 // and returns a struct containing that information unless an error occurred or we failed to find anything.
 func Geocode(place string) (ret *pb.GeocodingApi_Geoname, err error) {
@@ -64,8 +75,8 @@ func Geocode(place string) (ret *pb.GeocodingApi_Geoname, err error) {
 	return
 }
 
-// Forecast returns a forecast for a location, or an error if something goes wrong.
-func Forecast(place string, forecast int) (ret string, err error) {
+// Forecast returns a forecast for a location, or an error if something goes wrong. The forecast parameter specifies the type of forecast we want.
+func Forecast(place string, forecast ForecastType) (ret string, err error) {
 	var geo *pb.GeocodingApi_Geoname
 	if geo, err = Geocode(place); err == nil {
 		if geo == nil {
