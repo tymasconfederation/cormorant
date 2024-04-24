@@ -254,8 +254,8 @@ func Forecast(place string, forecast int) (ret string, err error) {
 								if t, err := time.Parse(time.DateOnly, dateStr); err == nil {
 									dayStr = t.Weekday().String()
 								} else {
-									dayStr = err.Error()
-									fmt.Printf("Error calling time.Parse(DateOnly, \"%v\": %v\n", dateStr, err.Error())
+									dayStr = extractErrorMessage(err)
+									fmt.Printf("Error calling time.Parse(DateOnly, \"%v\": %v\n", dateStr, extractErrorMessage(err))
 								}
 							}
 							weatherCodeD := weatherCode[day].(float64)

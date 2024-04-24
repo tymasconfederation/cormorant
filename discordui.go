@@ -2,6 +2,7 @@ package cormorant
 
 import (
 	"fmt"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -10,6 +11,8 @@ import (
 )
 
 const enableRecover = true
+
+var regexExtractErr *regexp.Regexp
 
 type MsgSource struct {
 	channel string
@@ -69,7 +72,7 @@ func NewDiscordUI(appID string, botToken string, runningChan chan int) DiscordUI
 func (this *DiscordUI) Run() {
 	discord, err := discordgo.New("Bot " + this.botToken)
 	if err != nil {
-		panic(fmt.Sprintf("Error creating Discord session: %s", err.Error()))
+		panic(fmt.Sprintf("Error creating Discord session: %s", extractErrorMessage(err)))
 	}
 	this.session = discord
 
@@ -86,7 +89,7 @@ func (this *DiscordUI) Run() {
 	this.session.ShouldReconnectOnError = true
 
 	if err != nil {
-		panic(fmt.Sprintf("Error opening Discord session: %s", err.Error()))
+		panic(fmt.Sprintf("Error opening Discord session: %s", extractErrorMessage(err)))
 	}
 	fmt.Println("Cormorant is now running. Press ctrl-c to exit.")
 
@@ -135,19 +138,19 @@ func (this *DiscordUI) Run() {
 	shutdownCmd := &discordgo.ApplicationCommand{ID: ShutdownCmd, ApplicationID: this.appID, Type: discordgo.ChatApplicationCommand, Name: ShutdownCmd,
 		Description: "Shut the bot down", DefaultMemberPermissions: &adminPermission} // require administrator permission
 	if _, err := discord.ApplicationCommandCreate(this.appID, "", colorCmd); err != nil {
-		panic(fmt.Sprintf("Error registering color command: %s", err.Error()))
+		panic(fmt.Sprintf("Error registering color command: %s", extractErrorMessage(err)))
 	}
 	if _, err := discord.ApplicationCommandCreate(this.appID, "", joinCmd); err != nil {
-		panic(fmt.Sprintf("Error registering join command: %s", err.Error()))
+		panic(fmt.Sprintf("Error registering join command: %s", extractErrorMessage(err)))
 	}
 	if _, err := discord.ApplicationCommandCreate(this.appID, "", leaveCmd); err != nil {
-		panic(fmt.Sprintf("Error registering leave command: %s", err.Error()))
+		panic(fmt.Sprintf("Error registering leave command: %s", extractErrorMessage(err)))
 	}
 	if _, err := discord.ApplicationCommandCreate(this.appID, "", weatherCmd); err != nil {
-		panic(fmt.Sprintf("Error registering weather command: %s", err.Error()))
+		panic(fmt.Sprintf("Error registering weather command: %s", extractErrorMessage(err)))
 	}
 	if _, err := discord.ApplicationCommandCreate(this.appID, "", shutdownCmd); err != nil {
-		panic(fmt.Sprintf("Error registering shutdown command: %s", err.Error()))
+		panic(fmt.Sprintf("Error registering shutdown command: %s", extractErrorMessage(err)))
 	}
 	fmt.Println("Commands registered.")
 }
@@ -171,7 +174,7 @@ func (this *DiscordUI) hasRolePtr(m *discordgo.Member, role *discordgo.Role) boo
 func (this *DiscordUI) hasRole(guild, userID, roleID string) bool {
 	m, err := this.session.GuildMember(guild, userID)
 	if err != nil {
-		//this.Error(fmt.Sprintf("hasRole(%s, %s, %s) = %s", guild, userID, roleID, err.Error()))
+		//this.Error(fmt.Sprintf("hasRole(%s, %s, %s) = %s", guild, userID, roleID, extractErrorMessage(err)))
 		return false
 	} else {
 		for i := 0; i < len(m.Roles); i++ {
@@ -222,19 +225,19 @@ func (this *DiscordUI) interactionCreate(s *discordgo.Session, ic *discordgo.Int
 				var responseStr string
 				var err error
 				if responseStr, err = Forecast(location, forecast); err != nil {
-					responseStr = err.Error()
+					responseStr = extractErrorMessage(err)
 				}
 				respData := &discordgo.InteractionResponseData{Content: responseStr}
 				resp := &discordgo.InteractionResponse{Type: discordgo.InteractionResponseChannelMessageWithSource, Data: respData}
 				if err := this.session.InteractionRespond(ic.Interaction, resp); err != nil {
-					fmt.Printf("Error calling WeatherCmd InteractionRespond: %v\n", err.Error())
+					fmt.Printf("Error calling WeatherCmd InteractionRespond: %v\n", extractErrorMessage(err))
 				}
 			}
 		case ShutdownCmd:
 			respData := &discordgo.InteractionResponseData{Content: "Shutting down."}
 			resp := &discordgo.InteractionResponse{Type: discordgo.InteractionResponseChannelMessageWithSource, Data: respData}
 			if err := this.session.InteractionRespond(ic.Interaction, resp); err != nil {
-				fmt.Printf("Error calling ShutdownCmd InteractionRespond: %v\n", err.Error())
+				fmt.Printf("Error calling ShutdownCmd InteractionRespond: %v\n", extractErrorMessage(err))
 			}
 			s.Close()
 			this.runningChan <- 0xdeadbeef
@@ -268,7 +271,7 @@ func (this *DiscordUI) interactionCreate(s *discordgo.Session, ic *discordgo.Int
 					TTS: false, Embeds: []*discordgo.MessageEmbed{}, Components: []discordgo.MessageComponent{}, Choices: choices}
 				resp := &discordgo.InteractionResponse{Type: discordgo.InteractionApplicationCommandAutocompleteResult, Data: respData}
 				if err := this.session.InteractionRespond(ic.Interaction, resp); err != nil {
-					fmt.Printf("Error calling autocomplete InteractionRespond: %v\n", err.Error())
+					fmt.Printf("Error calling autocomplete InteractionRespond: %v\n", extractErrorMessage(err))
 				}
 			}
 		}
@@ -278,7 +281,7 @@ func (this *DiscordUI) interactionCreate(s *discordgo.Session, ic *discordgo.Int
 			TTS: false, Embeds: []*discordgo.MessageEmbed{}, Components: []discordgo.MessageComponent{}}
 		resp := &discordgo.InteractionResponse{Type: discordgo.InteractionResponseChannelMessageWithSource, Data: respData}
 		if err := this.session.InteractionRespond(ic.Interaction, resp); err != nil {
-			fmt.Printf("Error calling default InteractionRespond: %v\n", err.Error())
+			fmt.Printf("Error calling default InteractionRespond: %v\n", extractErrorMessage(err))
 		}
 	}
 }
@@ -301,7 +304,7 @@ func (this *DiscordUI) handleJoinCommand(interaction *discordgo.Interaction, tar
 			if this.assignableRole(roleFound, botHighRole) {
 				err = s.GuildMemberRoleAdd(targGuild, member.User.ID, roleFound.ID)
 				if err != nil {
-					response = fmt.Sprintf("Failed to assign new role %s: %s", roleFound.Name, err.Error())
+					response = fmt.Sprintf("Failed to assign new role %s: %s", roleFound.Name, extractErrorMessage(err))
 				} else {
 					response = fmt.Sprintf("Added %v to `@%v`", member.DisplayName(), roleFound.Name)
 				}
@@ -316,11 +319,11 @@ func (this *DiscordUI) handleJoinCommand(interaction *discordgo.Interaction, tar
 			mentionable := true
 			roleParams := &discordgo.RoleParams{Name: groupParam, Color: &newColor, Hoist: &hoist, Permissions: &permissions, Mentionable: &mentionable}
 			if role, err := s.GuildRoleCreate(targGuild, roleParams); err != nil {
-				response = fmt.Sprintf("Failed to create new role %v: %v", groupParam, err.Error())
+				response = fmt.Sprintf("Failed to create new role %v: %v", groupParam, extractErrorMessage(err))
 			} else {
 				err = s.GuildMemberRoleAdd(targGuild, member.User.ID, role.ID)
 				if err != nil {
-					response = fmt.Sprintf("Failed to assign new role %s: %s", role.Name, err.Error())
+					response = fmt.Sprintf("Failed to assign new role %s: %s", role.Name, extractErrorMessage(err))
 				} else {
 					response = this.sortGuildRoles(groles, s, targGuild, role, botm, true, fmt.Sprintf("Added %v to new role `@%v`.", member.DisplayName(), role.Name))
 				}
@@ -333,7 +336,7 @@ func (this *DiscordUI) handleJoinCommand(interaction *discordgo.Interaction, tar
 		TTS: false, Embeds: []*discordgo.MessageEmbed{}, Components: []discordgo.MessageComponent{}}
 	resp := &discordgo.InteractionResponse{Type: discordgo.InteractionResponseChannelMessageWithSource, Data: respData}
 	if err := this.session.InteractionRespond(interaction, resp); err != nil {
-		fmt.Printf("Error calling join command InteractionRespond: %v\n", err.Error())
+		fmt.Printf("Error calling join command InteractionRespond: %v\n", extractErrorMessage(err))
 	}
 }
 
@@ -344,7 +347,7 @@ func (this *DiscordUI) handleLeaveCommand(interaction *discordgo.Interaction, ta
 	groles, err := s.GuildRoles(targGuild)
 	groupParam = strings.TrimPrefix(groupParam, "@")
 	if err != nil {
-		response = "Failed to retrieve list of guild roles: " + err.Error()
+		response = "Failed to retrieve list of guild roles: " + extractErrorMessage(err)
 	} else {
 		botm, err := s.GuildMember(targGuild, this.botID)
 		if err != nil {
@@ -373,7 +376,7 @@ func (this *DiscordUI) handleLeaveCommand(interaction *discordgo.Interaction, ta
 						// remove the user from the specified role
 						err = s.GuildMemberRoleRemove(targGuild, member.User.ID, roleFound.ID)
 						if err != nil {
-							response = fmt.Sprintf("Failed to remove role %s: %s", roleFound.Name, err.Error())
+							response = fmt.Sprintf("Failed to remove role %s: %s", roleFound.Name, extractErrorMessage(err))
 						} else {
 							response = fmt.Sprintf("Removed %v from `@%v`", member.DisplayName(), roleFound.Name)
 						}
@@ -390,7 +393,7 @@ func (this *DiscordUI) handleLeaveCommand(interaction *discordgo.Interaction, ta
 		TTS: false, Embeds: []*discordgo.MessageEmbed{}, Components: []discordgo.MessageComponent{}}
 	resp := &discordgo.InteractionResponse{Type: discordgo.InteractionResponseChannelMessageWithSource, Data: respData}
 	if err := this.session.InteractionRespond(interaction, resp); err != nil {
-		fmt.Printf("Error calling join command InteractionRespond: %v\n", err.Error())
+		fmt.Printf("Error calling join command InteractionRespond: %v\n", extractErrorMessage(err))
 	}
 }
 
@@ -419,7 +422,7 @@ func (this *DiscordUI) handleColorCommand(interaction *discordgo.Interaction, ta
 		} else {
 			groles, err := s.GuildRoles(targGuild)
 			if err != nil {
-				response = "Failed to retrieve list of guild roles: " + err.Error()
+				response = "Failed to retrieve list of guild roles: " + extractErrorMessage(err)
 			} else {
 				botm, err := s.GuildMember(targGuild, this.botID)
 				if err != nil {
@@ -439,7 +442,7 @@ func (this *DiscordUI) handleColorCommand(interaction *discordgo.Interaction, ta
 							var newRole *discordgo.Role
 							newRole, err = s.GuildRoleEdit(targGuild, groles[i].ID, roleParams)
 							if err != nil {
-								response = fmt.Sprintf("Failed to change role color: %s", err.Error())
+								response = fmt.Sprintf("Failed to change role color: %s", extractErrorMessage(err))
 								break
 							} else {
 								groles[i] = newRole
@@ -461,7 +464,7 @@ func (this *DiscordUI) handleColorCommand(interaction *discordgo.Interaction, ta
 							fmt.Printf("Role created. Assigning it to the user now.\n")
 							err = s.GuildMemberRoleAdd(targGuild, member.User.ID, role.ID)
 							if err != nil {
-								response = fmt.Sprintf("Failed to assign new role %s: %s", role.Name, err.Error())
+								response = fmt.Sprintf("Failed to assign new role %s: %s", role.Name, extractErrorMessage(err))
 							} else {
 								response = this.sortGuildRoles(groles, s, targGuild, role, botm, false, "Role color set successfully.")
 							}
@@ -475,7 +478,7 @@ func (this *DiscordUI) handleColorCommand(interaction *discordgo.Interaction, ta
 		respData := &discordgo.InteractionResponseData{Content: response}
 		resp := &discordgo.InteractionResponse{Type: discordgo.InteractionResponseChannelMessageWithSource, Data: respData}
 		if err := this.session.InteractionRespond(interaction, resp); err != nil {
-			fmt.Printf("Error calling handleColorCommand InteractionRespond: %v\n", err.Error())
+			fmt.Printf("Error calling handleColorCommand InteractionRespond: %v\n", extractErrorMessage(err))
 		}
 	}
 }
@@ -489,7 +492,7 @@ func (this *DiscordUI) sortGuildRoles(groles []*discordgo.Role, s *discordgo.Ses
 	fmt.Printf("Sorting guild roles.\n")
 	groles, err = s.GuildRoles(targGuild)
 	if err != nil {
-		response = fmt.Sprintf("Failed to assign new role %s: %s", role.Name, err.Error())
+		response = fmt.Sprintf("Failed to assign new role %s: %s", role.Name, extractErrorMessage(err))
 	} else {
 		var setRoleTo int
 		if afterColors {
@@ -508,7 +511,7 @@ func (this *DiscordUI) sortGuildRoles(groles []*discordgo.Role, s *discordgo.Ses
 
 		groles, err = s.GuildRoleReorder(targGuild, groles)
 		if err != nil {
-			response = fmt.Sprintf("Failed to reorder roles: %s", err.Error())
+			response = fmt.Sprintf("Failed to reorder roles: %s", extractErrorMessage(err))
 		} else {
 			response = success
 		}
@@ -555,7 +558,7 @@ func (this *DiscordUI) findBotRole(groles []*discordgo.Role, botm *discordgo.Mem
 func (this *DiscordUI) send(channel string, message string) {
 	_, err := this.session.ChannelMessageSend(channel, message)
 	if err != nil {
-		fmt.Printf("Error calling ChannelMessageSend(\"%s\", \"%s\"): %s\n", channel, message, err.Error())
+		fmt.Printf("Error calling ChannelMessageSend(\"%s\", \"%s\"): %s\n", channel, message, extractErrorMessage(err))
 	}
 }
 
@@ -609,7 +612,7 @@ func (this *DiscordUI) getAllGuildRoles() {
 	for _, g := range joinedGuilds {
 		guild, err := this.session.Guild(g.ID)
 		if err != nil {
-			fmt.Printf("Error calling getGuildRoles: %s", err.Error())
+			fmt.Printf("Error calling getGuildRoles: %s", extractErrorMessage(err))
 			break
 		} else {
 			roles := guild.Roles
@@ -625,7 +628,7 @@ func (this *DiscordUI) updateGuildRoles(guildID string) {
 	if err == nil {
 		this.guildRoles[guildID] = guild.Roles
 	} else {
-		fmt.Printf("Error calling updateGuildRoles: %s\n", err.Error())
+		fmt.Printf("Error calling updateGuildRoles: %s\n", extractErrorMessage(err))
 	}
 }
 
@@ -655,6 +658,22 @@ func (this *DiscordUI) guildHasRole(roleName string, roles []*discordgo.Role) (r
 			role = r
 			break
 		}
+	}
+	return
+}
+
+// extractErrorMessage extracts the error message from a HTTP error returned by discord, or, if it's not a HTTP error, just returns the error string.
+func extractErrorMessage(err error) (ret string) {
+	ret = err.Error()
+	if regexExtractErr == nil {
+		var errCompile error
+		if regexExtractErr, errCompile = regexp.Compile("HTTP \\d+ [\\w ]+, {\"message\": \"(.+)\","); errCompile != nil {
+			ret = fmt.Sprintf("Error compiling error-parsing regex %v to parse error %v.", errCompile.Error(), ret)
+		}
+	}
+	matches := regexExtractErr.FindStringSubmatch(ret)
+	if matches != nil && len(matches) > 1 {
+		ret = matches[1]
 	}
 	return
 }
