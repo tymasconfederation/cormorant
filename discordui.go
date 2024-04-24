@@ -12,6 +12,8 @@ import (
 
 const enableRecover = true
 
+// regexExtractErr contains the regex used to match the HTTP errors returned by discord.
+// It's compiled and stored in this var the first time extractErrorMessage is called.
 var regexExtractErr *regexp.Regexp
 
 type MsgSource struct {
