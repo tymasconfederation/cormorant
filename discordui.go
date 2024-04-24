@@ -474,27 +474,31 @@ func (this *DiscordUI) sortGuildRoles(groles []*discordgo.Role, s *discordgo.Ses
 	var err error
 	var response string
 	fmt.Printf("Sorting guild roles.\n")
-	groles = this.guildRoles[targGuild]
-	var setRoleTo int
-	if afterColors {
-		setRoleTo = 1
-	} else {
-		setRoleTo = this.findBotRole(groles, botm)
-	}
-	for i := 0; i < len(groles); i++ {
-		if groles[i].ID == role.ID {
-			groles[i].Position = setRoleTo
-		} else if groles[i].Position >= setRoleTo {
-			groles[i].Position += 1
-		}
-	}
-	sort.Sort(discordgo.Roles(groles))
-
-	groles, err = s.GuildRoleReorder(targGuild, groles)
+	groles, err = s.GuildRoles(targGuild)
 	if err != nil {
-		response = fmt.Sprintf("Failed to reorder roles: %s", extractErrorMessage(err))
+		response = fmt.Sprintf("Error calling s.GuildRoles(\"%s\"): %s", targGuild, extractErrorMessage(err))
 	} else {
-		response = success
+		var setRoleTo int
+		if afterColors {
+			setRoleTo = 1
+		} else {
+			setRoleTo = this.findBotRole(groles, botm)
+		}
+		for i := 0; i < len(groles); i++ {
+			if groles[i].ID == role.ID {
+				groles[i].Position = setRoleTo
+			} else if groles[i].Position >= setRoleTo {
+				groles[i].Position += 1
+			}
+		}
+		sort.Sort(discordgo.Roles(groles))
+
+		groles, err = s.GuildRoleReorder(targGuild, groles)
+		if err != nil {
+			response = fmt.Sprintf("Failed to reorder roles: %s", extractErrorMessage(err))
+		} else {
+			response = success
+		}
 	}
 	return response
 }
