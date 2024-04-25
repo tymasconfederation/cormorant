@@ -8,5 +8,5 @@ appid=yourappid
 authtoken=yourtoken
 ```
 2. Copy the included `docker-compose.yml` file from the root of this repo
-3. Replace the `env_file` path with the path to your `secrets.env`
+3. Replace the `env_file` path in the docker compose file with the path to your `secrets.env`
 4. `docker-compose up`
