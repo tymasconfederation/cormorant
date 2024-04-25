@@ -1,0 +1,9 @@
+version: "3.7"
+
+services:
+  cormorant:
+    image: "ghcr.io/tymasconfederation/cormorant:latest"
+    container_name: cormorant
+    restart: unless-stopped
+    env_file:
+      - /srv/cormorant/secrets.env
