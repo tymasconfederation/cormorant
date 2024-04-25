@@ -18,7 +18,7 @@ import (
 var weatherCodeName map[int]string = map[int]string{
 	0:  ":sun: Clear sky",
 	1:  ":white_sun_small_cloud: Mainly clear",
-	2:  ":partly_cloudy: Partly cloudy",
+	2:  ":white_sun_cloud: Partly cloudy",
 	3:  ":cloud: Overcast",
 	45: ":fog: Fog",
 	48: ":fog: Depositing rime fog",
@@ -58,8 +58,22 @@ const (
 
 // Geocode calls the open-meteo geocoding API to get information a postal code or place name,
 // and returns a struct containing that information unless an error occurred or we failed to find anything.
-func Geocode(place string) (ret *pb.GeocodingApi_Geoname, err error) {
-	uri := fmt.Sprintf("https://geocoding-api.open-meteo.com/v1/search?name=%v&count=1&language=en&format=protobuf", url.QueryEscape(place))
+// If extractState is true, it splits the place string at a "," if one exists, searches for the left hand side,
+// and looks through the results to try to find one whose geo.Admin1 matches the right hand side.
+func Geocode(place string, extractState bool) (ret *pb.GeocodingApi_Geoname, err error) {
+	state := ""
+	stateL := ""
+	count := 1
+	if extractState {
+		splitStr := strings.Split(place, ",")
+		if len(splitStr) > 1 {
+			place = strings.Trim(splitStr[0], " ")
+			state = strings.Trim(splitStr[1], " ")
+			stateL = strings.ToLower(state)
+			count = 10
+		}
+	}
+	uri := fmt.Sprintf("https://geocoding-api.open-meteo.com/v1/search?name=%v&count=%v&language=en&format=protobuf", url.QueryEscape(place), count)
 	var resp []byte
 	if resp, err = call(uri); err == nil {
 		var msg *pb.GeocodingApi_SearchResults = &pb.GeocodingApi_SearchResults{}
@@ -68,7 +82,19 @@ func Geocode(place string) (ret *pb.GeocodingApi_Geoname, err error) {
 			if len(results) == 0 {
 				err = fmt.Errorf("Unable to find `%v`", place)
 			} else if len(results) >= 1 {
-				ret = results[0]
+				if extractState {
+					for _, r := range results {
+						if strings.ToLower(r.Admin1) == stateL {
+							ret = r
+							break
+						}
+					}
+					if ret == nil {
+						err = fmt.Errorf("Unable to find `%v, %v`", place, state)
+					}
+				} else {
+					ret = results[0]
+				}
 			}
 		}
 	}
@@ -78,7 +104,10 @@ func Geocode(place string) (ret *pb.GeocodingApi_Geoname, err error) {
 // Forecast returns a forecast for a location, or an error if something goes wrong. The forecast parameter specifies the type of forecast we want.
 func Forecast(place string, forecast ForecastType) (ret string, err error) {
 	var geo *pb.GeocodingApi_Geoname
-	if geo, err = Geocode(place); err == nil {
+	if geo, err = Geocode(place, false); err != nil {
+		geo, err = Geocode(place, true)
+	}
+	if err == nil {
 		if geo == nil {
 			err = fmt.Errorf("Geocode(%v) returned nil for both geo and err.", place)
 		} else {
@@ -123,7 +152,7 @@ func Forecast(place string, forecast ForecastType) (ret string, err error) {
 						fmt.Printf("Weather code %v, weatherCodeStr %v\n", int(weatherCode), weatherCodeStr)
 						ret = fmt.Sprintf("Current conditions for %v, %v, %v:\n%v\n"+
 							":thermometer: Temperature: Currently %0.1f°F (%0.1f°C).\n"+
-							":dash: Wind: %0.2f MPH / %0.2f km/h\n"+
+							":dash: Wind: %0.2f MPH (%0.2f km/h)\n"+
 							":sunrise: Sunrise at %v\n"+
 							":city_dusk: Sunset at %v",
 							geo.Name, geo.Admin1, geo.Country, weatherCodeStr, curTempF, curTemp,
@@ -209,7 +238,7 @@ func Forecast(place string, forecast ForecastType) (ret string, err error) {
 							":arrow_down: Low of %0.1f°F (%0.1f°C), apparent %0.1f°F (%0.1f°C).\n"+
 							":arrow_up: High of %0.1f°F (%0.1f°C), apparent %0.1f°F (%0.1f°C)\n"+
 							"%v"+
-							":dash: Wind: %0.2f MPH / %0.2f km/h\n"+
+							":dash: Wind: %0.2f MPH (%0.2f km/h)\n"+
 							":sunrise: Sunrise at %v\n"+
 							":city_dusk: Sunset at %v",
 							geo.Name, geo.Admin1, geo.Country, weatherCodeStr, curTempF, curTemp, minTempF, minTemp,
