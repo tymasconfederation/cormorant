@@ -70,7 +70,7 @@ func Geocode(place string, extractState bool) (ret *pb.GeocodingApi_Geoname, err
 			place = strings.Trim(splitStr[0], " ")
 			state = strings.Trim(splitStr[1], " ")
 			stateL = strings.ToLower(state)
-			count = 10
+			count = 50
 		}
 	}
 	uri := fmt.Sprintf("https://geocoding-api.open-meteo.com/v1/search?name=%v&count=%v&language=en&format=protobuf", url.QueryEscape(place), count)
