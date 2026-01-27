@@ -6,4 +6,4 @@ services:
     container_name: cormorant
     restart: unless-stopped
     env_file:
-      - /srv/cormorant/secrets.env
+      - /persist/keys/cormorant-secrets.env
