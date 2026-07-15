@@ -1,5 +1,5 @@
 #build stage
-FROM golang:1.23 AS builder
+FROM golang:1.26 AS builder
 WORKDIR /app
 COPY . .
 RUN go get -d -v ./...
@@ -11,4 +11,4 @@ COPY --from=builder /app/cormorant /app/cormorant
 ENTRYPOINT ["/app/cormorant"]
 CMD ["cormorant"]
 USER nonroot:nonroot
-LABEL Name=cormorant Version=1.0.0
+LABEL Name=cormorant Version=1.0.8
