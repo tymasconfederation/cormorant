@@ -11,4 +11,4 @@ COPY --from=builder /app/cormorant /app/cormorant
 ENTRYPOINT ["/app/cormorant"]
 CMD ["cormorant"]
 USER nonroot:nonroot
-LABEL Name=cormorant Version=1.0.8
+LABEL Name=cormorant Version=1.0.9
